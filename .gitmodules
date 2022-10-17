@@ -1,0 +1,3 @@
+[submodule "dws"]
+	path = dws
+	url = https://github.com/HewlettPackard/dws.git
