@@ -1,0 +1,7 @@
+<testsuites tests='3' skip='0' time='0.46' failures='0' errors='0'>
+        <testsuite tests='3' failures='0' time='0.43' skip='0' name='Run 1 of 1' timestamp='2022-10-19T18:39:00' errors='0'>
+                <testcase name='The burst buffer test script should import burst_buffer.lua and allow function calls' classname='test.lua:7' time='0.00'/>
+                <testcase name='The burst buffer test script should import burst_buffer.lua and validate Custom Resources' classname='test.lua:10' time='0.20'/>
+                <testcase name='The burst buffer test script should import burst_buffer.lua and identify mistakes in Custom Resources' classname='test.lua:16' time='0.21'/>
+        </testsuite>
+</testsuites>
