@@ -1,5 +1,5 @@
 <testExecutions version="1">
-  <file path="testx/ClassOneTest.xoo">
+  <file path="testsuite/unit/burst_buffer/test.lua">
     <testCase name="test1" duration="5"/>
     <testCase name="test2" duration="500">
       <skipped message="short message">other</skipped>
