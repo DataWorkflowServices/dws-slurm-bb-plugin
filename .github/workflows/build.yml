@@ -27,8 +27,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: debug
-        run: ls
+      - uses: actions/download-artifact@v3
+        with:
+          name: unittest
       - name: Publish Test Results
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
