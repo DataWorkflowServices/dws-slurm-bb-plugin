@@ -16,19 +16,11 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
       - name: Unit Tests
-        run: docker buildx build --target testartifacts -t testartifacts --output . . && ls
+        run: docker buildx build --target testartifacts -t testartifacts --output test_artifacts . && ls
       - uses: actions/upload-artifact@v3
         with:
-          name: unittest_execution
-          path: unittest.junit.xml
-      - uses: actions/upload-artifact@v3
-        with:
-          name: coverage
-          path: coverage.cobertura.xml
-      - uses: actions/upload-artifact@v3
-        with:
-          name: coverage report
-          path: coverage.html.tar.gz
+          name: unittest
+          path: test_artifacts
 
   publish:
     name: Publish
@@ -37,7 +29,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v3
         with:
-          name: test_artifacts
+          name: unittest
       - name: Publish Test Results
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
