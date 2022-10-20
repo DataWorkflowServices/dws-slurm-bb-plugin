@@ -16,7 +16,7 @@ jobs:
       # - name: Set up Docker Buildx
       #   uses: docker/setup-buildx-action@v2
       - name: Unit Tests
-        run: DOCKER_BUILDKIT=1 && docker build --target testartifacts -t testartifacts . --output . && ls
+        run: DOCKER_BUILDKIT=1 && docker build --target testartifacts -t testartifacts --output . . && ls
       - uses: actions/upload-artifact@v3
         with:
           name: unittest_execution
