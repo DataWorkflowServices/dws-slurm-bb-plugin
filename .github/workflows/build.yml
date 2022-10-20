@@ -30,6 +30,8 @@ jobs:
       - uses: actions/download-artifact@v3
         with:
           name: unittest
+      - name: debug
+        run: ls
       - name: Publish Test Results
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
