@@ -18,10 +18,10 @@ jobs:
         uses: docker/setup-buildx-action@v2
 
       - name: Unit Tests
-        run: docker buildx build 
-            --target testresults 
-            -t testresults 
-            --build-arg IGNORE_TEST_FAILURE=true 
+        run: docker buildx build
+            --target testresults
+            -t testresults
+            --build-arg IGNORE_TEST_FAILURE=true
             --output test_artifacts 
             .
 
@@ -38,7 +38,12 @@ jobs:
           junit_files: "test_artifacts/unittest.junit.xml"
 
       - name: Unit Test Artifacts
-        run: docker buildx build --target testartifacts -t testartifacts --output test_artifacts .
+        run: docker buildx build
+            --target testartifacts
+            -t testartifacts
+            --build-arg IGNORE_TEST_FAILURE=true
+            --output test_artifacts 
+            .
 
       - name: Publish Coverage Results
         uses: actions/upload-artifact@v3
