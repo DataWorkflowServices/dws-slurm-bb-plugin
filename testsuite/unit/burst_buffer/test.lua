@@ -1,4 +1,4 @@
-require("burst_buffer")
+require("burst_buffer/burst_buffer")
 
 CRDFILE="/dws/config/crd/bases/dws.cray.hpe.com_clientmounts.yaml"
 
