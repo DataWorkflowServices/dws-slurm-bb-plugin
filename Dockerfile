@@ -21,22 +21,25 @@ FROM testbase AS test
 WORKDIR /
 COPY testsuite/unit/bin /bin
 COPY testsuite/unit/luacov.lua /.luacov
+COPY testsuite/unit/output.lua /output.lua
 COPY src /
 COPY testsuite/unit/burst_buffer/test.lua /
 
-RUN busted -o junit -Xoutput junit.xml --coverage test.lua && \
-    mv luacov-html coverage.html && \
-    tar -czvf coverage.html.tar.gz /coverage.html || \
-    echo "UNIT TEST FAILURE"
+RUN busted -o output.lua -Xoutput junit.xml --verbose --coverage test.lua || echo "FAILURE"
 
 FROM scratch AS testresults
 
 ARG testExecutionFile="unittest.junit.xml"
 COPY --from=test junit.xml /$testExecutionFile
 
+FROM test AS packageresults
+
+RUN mv luacov-html coverage.html && \
+    tar -czvf coverage.html.tar.gz /coverage.html
+
 FROM testresults AS testartifacts
 
 ARG testCoverageFile="coverage.cobertura.xml"
 ARG testCoverageReport="coverage.html.tar.gz"
 COPY --from=test cobertura.xml /$testCoverageFile
-COPY --from=test coverage.html.tar.gz /$testCoverageReport
+COPY --from=packageresults coverage.html.tar.gz /$testCoverageReport
