@@ -34,7 +34,7 @@ jobs:
           thresholds: '80 85'
 
       - name: Move Coverage Report
-        run: ls && mv code-coverage-results.md test_artifacts/coverage.cobertura.xml
+        run: mv code-coverage-results.md test_artifacts/code-coverage-results.md
 
       - uses: actions/upload-artifact@v3
         with:
