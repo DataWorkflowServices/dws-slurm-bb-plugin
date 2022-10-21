@@ -21,7 +21,7 @@ FROM testbase AS test
 WORKDIR /
 COPY testsuite/unit/bin /bin
 COPY testsuite/unit/luacov.lua /.luacov
-COPY src/burst_buffer/burst_buffer.lua /burst_buffer/burst_buffer.lua
+COPY src /
 COPY testsuite/unit/burst_buffer/test.lua /
 
 RUN busted -o junit -Xoutput junit.xml --coverage test.lua && \
