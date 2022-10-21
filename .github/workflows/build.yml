@@ -20,7 +20,7 @@ jobs:
       - name: Unit Tests
         run: docker buildx build \
             --target testresults \
-            -t testresults 
+            -t testresults \
             --build-arg IGNORE_TEST_FAILURE=true \
             --output test_artifacts \
             .
