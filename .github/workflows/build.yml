@@ -18,7 +18,12 @@ jobs:
         uses: docker/setup-buildx-action@v2
 
       - name: Unit Tests
-        run: docker buildx build --target testresults -t testresults --output test_artifacts .
+        run: docker buildx build \
+            --target testresults \
+            -t testresults 
+            --build-arg IGNORE_TEST_FAILURE=true \
+            --output test_artifacts \
+            .
 
       - name: Publish Test Results
         uses: actions/upload-artifact@v3
