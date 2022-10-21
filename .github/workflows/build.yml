@@ -34,7 +34,7 @@ jobs:
           thresholds: '80 85'
 
       - name: Move Coverage Report
-        run: mv code-coverage-results.md test_artifacts/coverage.cobertura.xml
+        run: ls && mv code-coverage-results.md test_artifacts/coverage.cobertura.xml
 
       - uses: actions/upload-artifact@v3
         with:
@@ -42,7 +42,7 @@ jobs:
           path: test_artifacts
 
   publish:
-    name: Publish
+    name: Publish Results
     needs: build
     runs-on: ubuntu-latest
     steps:
