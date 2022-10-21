@@ -26,7 +26,8 @@ COPY testsuite/unit/burst_buffer/test.lua /
 
 RUN busted -o junit -Xoutput junit.xml --coverage test.lua && \
     mv luacov-html coverage.html && \
-    tar -czvf coverage.html.tar.gz /coverage.html
+    tar -czvf coverage.html.tar.gz /coverage.html || \
+    echo "UNIT TEST FAILURE"
 
 FROM scratch AS testartifacts
 
