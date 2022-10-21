@@ -29,12 +29,14 @@ RUN busted -o junit -Xoutput junit.xml --coverage test.lua && \
     tar -czvf coverage.html.tar.gz /coverage.html || \
     echo "UNIT TEST FAILURE"
 
-FROM scratch AS testartifacts
+FROM scratch AS testresults
 
 ARG testExecutionFile="unittest.junit.xml"
+COPY --from=test junit.xml /$testExecutionFile
+
+FROM testresults AS testartifacts
+
 ARG testCoverageFile="coverage.cobertura.xml"
 ARG testCoverageReport="coverage.html.tar.gz"
-
-COPY --from=test junit.xml /$testExecutionFile
 COPY --from=test cobertura.xml /$testCoverageFile
 COPY --from=test coverage.html.tar.gz /$testCoverageReport
