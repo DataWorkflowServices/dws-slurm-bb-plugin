@@ -27,7 +27,7 @@ COPY testsuite/unit/burst_buffer/test.lua /
 
 ARG IGNORE_TEST_FAILURE=false
 RUN busted -o output.lua -Xoutput junit.xml --verbose --coverage test.lua || \
-    test "$IGNORE_FAILURE" == "true"
+    test "$IGNORE_TEST_FAILURE" == "true"
 
 FROM scratch AS testresults
 
