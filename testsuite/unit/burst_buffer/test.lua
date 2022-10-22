@@ -19,8 +19,5 @@ describe("The burst buffer test script", function()
 			local rc = {out:close()}
 			assert.are.equals(1, rc[3])
 		end)
-		it("fails", function()
-			assert.is_true(false)
-		end)
 	end)
 end)
