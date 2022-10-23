@@ -1,0 +1,4 @@
+[submodule "testsuite/submodules/dws"]
+	path = testsuite/submodules/dws
+	url = https://github.com/HewlettPackard/dws.git
+	branch = master
