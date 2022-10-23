@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Deploy
+on:
+  push:
+    branches:
+      - "main"
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Test"
+        uses: ./.github/workflows/test.yml
