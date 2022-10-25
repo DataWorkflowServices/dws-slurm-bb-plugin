@@ -45,21 +45,10 @@ jobs:
 
       - name: Unzip artifacts
         run: unzip unit-test-results.zip && unzip event.json.zip
-        
-      # - name: Publish Unit Test Results
-      #   uses: EnricoMi/publish-unit-test-result-action@v2
-      #   if: always()
-      #   with:
-      #     check_name: "Test Execution Results"
-      #     junit_files: "unittest.junit.xml"
-      #     commit: ${{ github.event.workflow_run.head_sha }}
-      #     event_file: event.json
-      #     event_name: ${{ github.event.workflow_run.event }}
-      #     compare_to_earlier_commit: false
 
       - name: Publish Unit Test Results
         uses: scacap/action-surefire-report@v1
-        if: ( github.event.workflow_run.event == 'push' ) || ( github.event.repository.full_name != github.event.workflow_run.repository.full_name)
+        if: ( github.event.workflow_run.event == 'push' ) || ( github.event.repository.full_name != github.event.workflow_run.head_repository.full_name )
         with:
           report_paths: "**/*.junit.xml"
           check_name: "Unit Test Report"
@@ -77,5 +66,11 @@ jobs:
         with:
           path: code-coverage-results.md
           number: ${{ env.TEST_PR_NUMBER }}
+
+      - name: Publish Event File
+        uses: actions/upload-artifact@v2
+        with:
+          name: event-file
+          path: ${{ github.event_path }}
 
 
