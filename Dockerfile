@@ -1,11 +1,3 @@
-FROM golang:1.19-alpine AS dwsbase
-
-RUN apk add --no-cache make=4.3-r0 bash=5.1.16-r2
-
-COPY testsuite/submodules/dws /dws
-WORKDIR /dws
-RUN make manifests
-
 FROM ghcr.io/lunarmodules/busted:v2 AS testbase
 
 RUN apk add --no-cache make=4.3-r0 bash=5.1.16-r0 git=2.34.5-r0 && \
@@ -14,7 +6,7 @@ RUN apk add --no-cache make=4.3-r0 bash=5.1.16-r0 git=2.34.5-r0 && \
     pip3 install --no-cache-dir openapi-schema-validator==0.3.4 pyyaml==6.0 && \
     luarocks install luacov && luarocks install luacov-multiple && luarocks install luacov-html
 
-COPY --from=dwsbase /dws /dws
+COPY testsuite/submodules/dws /dws
 
 FROM testbase AS testrun
 
