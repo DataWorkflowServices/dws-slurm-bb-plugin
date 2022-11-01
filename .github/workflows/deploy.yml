@@ -6,9 +6,5 @@ on:
       - "main"
 
 jobs:
-  deploy:
-    name: Deploy
-    runs-on: ubuntu-latest
-    steps:
-      - name: "Test"
-        uses: ./.github/workflows/test.yml
+  unit-test:
+    uses: ./.github/workflows/test.yml
