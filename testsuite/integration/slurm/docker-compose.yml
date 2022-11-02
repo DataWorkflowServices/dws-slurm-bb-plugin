@@ -2,7 +2,7 @@ version: "2.2"
 
 services:
   mysql:
-    image: mysql:5.7
+    image: mysql:8
     hostname: mysql
     container_name: mysql
     environment:
@@ -16,7 +16,7 @@ services:
   slurmdbd:
     image: slurm-bb:${TAG:-test}
     build:
-      context: ../submodules/slurm-docker-cluster
+      context: ../../submodules/slurm-docker-cluster
       args:
         SLURM_TAG: ${SLURM_TAG:-slurm-22-05-4-1}
     command: ["slurmdbd"]
@@ -42,7 +42,7 @@ services:
         target: /jobs
       - var_log_slurm:/var/log/slurm
       - type: bind
-        source: ../../src/burst_buffer/burst_buffer.lua.example
+        source: ../../../src/burst_buffer/burst_buffer.lua.example
         target: /etc/slurm/burst_buffer.lua
     expose:
       - "6817"
