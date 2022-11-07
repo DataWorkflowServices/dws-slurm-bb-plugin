@@ -3,7 +3,8 @@
 -- Refer to the following link for more information on configuraing Luacov.
 -- https://github.com/lunarmodules/luacov#configuration
 include = {
-   "burst_buffer$"
+   "burst_buffer$",
+   "burst_buffer%/.+$",
 }
 
 -- luacov-multiple allows two different outputs for coverage results. In this
