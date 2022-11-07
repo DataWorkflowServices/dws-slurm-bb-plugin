@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 #
 # Copyright 2022 Hewlett Packard Enterprise Development LP
 # Other additional copyright holders may be indicated within.
@@ -17,21 +19,25 @@
 # limitations under the License.
 #
 
-#NOCACHE= --no-cache
-#PROGRESS= --progress plain
+set -e
+set -x
 
-test: $(find src -type f) $(find testsuite/unit/src -type f) Dockerfile
-	docker buildx build $(NOCACHE) $(PROGRESS) --target test -t test .
+# Create a KIND cluster to run DWS operator.  Read the KIND docs if you need
+# more than just a single node.
+kind create cluster --wait 60s
 
-OUTPUT_HANDLER = --output testsuite/unit/TAP.lua
+# Tell K8s where it can schedule DWS.
+# We've created a basic KIND cluster with just one node, so label that one:
+kubectl label node kind-control-plane cray.wlm.manager=true
 
-TAG ?=  # specify a string like TAG="-t mytag"
+# Install the cert-manager for the DWS webhook.
+kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.7.0/cert-manager.yaml
 
-test-mocks: VALIDATOR ?= testsuite/unit/bin/validate 
-test-mocks: CRDFILE=testsuite/submodules/dws/config/crd/bases/dws.cray.hpe.com_workflows.yaml
-test-mocks:
-	CRDFILE=$(CRDFILE) VALIDATOR=$(VALIDATOR) busted $(TAG) $(OUTPUT_HANDLER) testsuite/unit/src/burst_buffer/dws-test.lua
-
-test-live:
-	RUN_LIVE=yes busted $(TAG) $(OUTPUT_HANDLER) testsuite/unit/src/burst_buffer/dws-test.lua
+set +x
+while true
+do
+	echo "Waiting for cert-manager to become ready"
+	[ $(kubectl get pods -n cert-manager --no-headers | awk '{print $2}' | grep "1/1" | wc -l) == 3 ] && break
+	sleep 10
+done
 
