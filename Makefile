@@ -23,7 +23,7 @@
 test: $(find src -type f) $(find testsuite/unit/src -type f) Dockerfile
 	docker buildx build $(NOCACHE) $(PROGRESS) --target test -t test .
 
-OUTPUT_HANDLER = --output testsuite/unit/TAP.lua
+OUTPUT_HANDLER = --output TAP
 
 TAG ?=  # specify a string like TAG="-t mytag"
 

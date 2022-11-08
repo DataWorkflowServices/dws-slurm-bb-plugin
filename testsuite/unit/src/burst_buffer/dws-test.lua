@@ -257,7 +257,8 @@ describe("The dws library test", function()
 
 		-- Wait for the resource state to progress to "Completed" state.
 		local wait_for_state = function(state)
-			local result_wanted = state .. "\n" .. state .. "\n" .. "Completed\n" 
+			local result_wanted = "desiredState=" .. state .. "\ncurrentState=" .. state .. "\nstatus=Completed\n"
+
 			workflow.mock_io_popen.ret = true
 			workflow.mock_io_popen.result = result_wanted
 			local done, err = workflow:wait_for_status_complete(60)
@@ -265,10 +266,9 @@ describe("The dws library test", function()
 				assert.stub(io.popen).was_called()
 			end
 			assert.is_true(done, err)
-			-- err is a table having the three values from
-			-- result_wanted in some random order.
-			assert.is_true(err[0] == state or err[1] == state or err[2] == state)
-			assert.is_true(err[0] == "Completed" or err[1] == "Completed" or err[2] == "Completed")
+			assert.is_equal(err["desiredState"], state)
+			assert.is_equal(err["currentState"], state)
+			assert.is_equal(err["status"], "Completed")
 		end
 
 		-- Check that the resource's hurry flag is as desired.

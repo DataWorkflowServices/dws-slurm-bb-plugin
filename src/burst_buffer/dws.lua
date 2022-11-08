@@ -89,8 +89,7 @@ end
 -- On failure this returns false and an optional error message.
 function DWS:save(fname)
 	local f = io.open(fname, "w")
-	if f == nil 
-	then
+	if f == nil then
 		local msg = "unable to open " .. fname
 		return false, msg
 	end
@@ -124,25 +123,27 @@ end
 
 -- DWS.get_current_state will get the status of the Workflow resource with
 -- respect to its desired state.
--- On success this returns true and an array containing the desiredState,
+-- On success this returns true and a table containing the desiredState,
 -- the current state, and the status of the current state.
 -- On failure this returns false and the output of the kubectl command.
 function DWS:get_current_state()
-	local ret, output = self:get_jsonpath([[{.spec.desiredState}{"\n"}{.status.state}{"\n"}{.status.status}{"\n"}]])
+	local ret, output = self:get_jsonpath([[desiredState={.spec.desiredState}{"\n"}currentState={.status.state}{"\n"}status={.status.status}{"\n"}]])
 	if ret == false then
 		return ret, output
 	end
 	local status = {}
 	local idx = 0
 	for line in output:gmatch("[^\n]+") do
-		status[idx] = line
+		for k, v in string.gmatch(line, "(%w+)=([%w_]+)") do
+			status[k] = v
+		end
 		idx = idx + 1
 	end
-	if idx == 1 and status[0] == "proposal" then
+	if idx == 1 and status["desiredState"] == "proposal" then
 		-- DWS has not yet attached a status section to this new
 		-- resource.  Fill out the table for our consumer.
-		status[1] = ""
-		status[2] = ""
+		status["currentState"] = ""
+		status["status"] = ""
 	elseif idx ~= 3 then
 		-- We should have had 3 lines.
 		ret = false
@@ -177,9 +178,9 @@ function DWS:wait_for_status_complete(max_passes)
 		end
 		-- Wait for current state to reflect the desired state, and
 		-- for the current state to be complete.
-		if output[0] == output[1] and string.find(output[2], "Completed") ~= nil then
+		if output["desiredState"] == output["currentState"] and output["status"] == "Completed" then
 			return true, output
-		elseif string.find(output[2], "Error") ~= nil then
+		elseif output["status"] == "Error" then
 			return false, output
 		end
 		os.execute("sleep 1")

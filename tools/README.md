@@ -97,10 +97,10 @@ Completed
 To get current state so it can be compared to desiredState:
 
 ```bash
-$ kubectl get workflow silver -o jsonpath='{.spec.desiredState}{"\n"}{.status.state}{"\n"}{.status.status}{"\n"}'                 
-setup
-setup
-Completed
+$ kubectl get workflow silver -o jsonpath='desiredState={.spec.desiredState}{"\n"}currentState={.status.state}{"\n"}status={.status.status}{"\n"}'
+desiredState=proposal
+currentState=proposal
+status=Completed
 ```
 
 ## State: Setup
