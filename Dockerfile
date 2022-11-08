@@ -15,8 +15,9 @@ COPY testsuite/unit/luacov.lua /.luacov
 COPY testsuite/unit/output.lua /output.lua
 COPY src /
 COPY testsuite/unit/src/burst_buffer/test.lua /
+COPY testsuite/unit/src/burst_buffer/dws-test.lua /
 
-RUN busted -o output.lua -Xoutput junit.xml --verbose --coverage test.lua || \
+RUN busted -o output.lua -Xoutput junit.xml --verbose --coverage *test.lua || \
     touch testsFailed.indicator
 
 FROM scratch AS testresults
