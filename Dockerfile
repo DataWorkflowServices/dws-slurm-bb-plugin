@@ -1,6 +1,6 @@
 FROM ghcr.io/lunarmodules/busted:v2 AS testbase
 
-RUN apk add --no-cache make=4.3-r0 bash=5.1.16-r0 git=2.34.5-r0 python3=3.9.13-r1 && \
+RUN apk add --no-cache make bash git python3 && \
     python3 -m ensurepip --upgrade && \
     pip3 install --no-cache-dir openapi-schema-validator==0.3.4 pyyaml==6.0 && \
     luarocks install luacov && luarocks install luacov-multiple && luarocks install luacov-html
@@ -14,9 +14,9 @@ COPY testsuite/unit/bin /bin
 COPY testsuite/unit/luacov.lua /.luacov
 COPY testsuite/unit/output.lua /output.lua
 COPY src /
-COPY testsuite/unit/src/burst_buffer/test.lua /
 COPY testsuite/unit/src/burst_buffer/dws-test.lua /
 
+ENV MOCK_SLURM yes
 RUN busted -o output.lua -Xoutput junit.xml --verbose --coverage *test.lua || \
     touch testsFailed.indicator
 

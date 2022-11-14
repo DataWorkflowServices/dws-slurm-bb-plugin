@@ -96,13 +96,6 @@ DWS = {
 
 	-- The YAML text of the Workflow resource.
 	yaml = "",
-
---	-- Used by the tests when stubbing io.popen.  These values will be
---	-- returned by DWS:io_popen().
---	mock_io_popen = {
---		ret = false,
---		result = "",
---	},
 }
 DWS.__index = DWS
 
@@ -317,7 +310,6 @@ function DWS:io_popen(cmd)
 	if handle == nil then
 		-- The io.popen was stubbed by a test.  Use the provided
 		-- return values.
-		--return self.mock_io_popen.ret, self.mock_io_popen.result
 		return dwsmq_dequeue()
 	end
 	local result = handle:read("*a")
