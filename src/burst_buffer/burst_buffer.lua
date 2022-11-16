@@ -36,7 +36,7 @@ local DIRECTIVE = "BB_LUA"
 -- used by other WLMs, so the DWS library expects it.
 WLMID_PLACEHOLDER = "slurm"
 
-local lua_script_name="burst_buffer.lua"
+lua_script_name="burst_buffer.lua"
 
 math.randomseed(os.time())
 
@@ -291,12 +291,12 @@ end
 function DWS:set_workflow_state_and_wait(new_state, hurry)
 	local done, err = self:set_desired_state(new_state, hurry)
 	if done == false then
-		return done, err
+		return done, "set_desired_state: " .. err
 	end
 
 	done, err = self:wait_for_status_complete(60)
 	if done == false then
-		return done, err
+		return done, "wait_for_status_complete: " .. err
 	end
 
 	return true, err
@@ -350,16 +350,19 @@ function make_workflow(workflow, job_script, jobid, userid, groupid)
 	local dwd = find_dw_directives(job_script)
 	workflow:initialize(WLMID_PLACEHOLDER, jobid, userid, groupid, dwd)
 
+	local msg
 	local yaml_name = os.tmpname()
 	local done, err = workflow:save(yaml_name)
 	if done == false then
-		return done, err
+		msg = "unable to save yaml: " .. err
+		return done, msg
 	end
 
 	done, err = workflow:apply(yaml_name)
 	os.remove(yaml_name)
 	if done == false then
-		return done, err
+		msg = "unable to apply workflow: " .. err
+		return done, msg
 	end
 
 	return true, nil
@@ -405,10 +408,11 @@ function slurm_bb_job_process(job_script)
 	slurm.log_info("%s: slurm_bb_job_process(). job_script=%s",
 		lua_script_name, job_script)
 
-	-- Note: In this version of Slurm we do not have the job ID in this
-	-- function; it's coming in a later version.  So we have no way to
-	-- name the Workflow so that it can be found in a later step.
-	-- In a future version of Slurm this function will also get a user ID
+	-- Note: In this version of Slurm, 22.05.[3-5], we do not have the job
+	-- ID in this function, though it's coming in the 23.02 release.
+	-- So we have no way to name the Workflow so that it can be found in a
+	-- later step.
+	-- In the 23.02 release of Slurm this function will also get a user ID
 	-- and group ID.
 	-- For now we will create the Workflow resource with a temporary name
 	-- and with placeholder values for the user ID and group ID.  We will
@@ -420,7 +424,7 @@ function slurm_bb_job_process(job_script)
 	local workflow = DWS(workflow_name)
 	local done, err = make_workflow(workflow, job_script, 1, 1, 1)
 	if done == false then
-		slurm.log_error("%s: slurm_bb_job_process(). %s", lua_script_name, err)
+		slurm.log_error("%s: slurm_bb_job_process(), workflow=%s, make_workflow: %s", lua_script_name, workflow_name, err)
 		return slurm.ERROR, err
 	end
 
@@ -431,7 +435,7 @@ function slurm_bb_job_process(job_script)
 
 	done, err = workflow:delete()
 	if done == false then
-		slurm.log_error("%s: slurm_bb_job_process(). %s", lua_script_name, err)
+		slurm.log_error("%s: slurm_bb_job_process(), workflow=%s, make_workflow: unable to delete temporary workflow: %s", lua_script_name, workflow_name, err)
 		return slurm.ERROR, err
 	end
 
@@ -461,30 +465,10 @@ end
 --]]
 function slurm_bb_pools()
 
-	slurm.log_info("%s: slurm_bb_pools().", lua_script_name)
+	--slurm.log_info("%s: slurm_bb_pools().", lua_script_name)
 
-	--This commented out code specifies pools in a file:
-	--local pools_file, pools
-	--pools_file = "/path/to/file"
-
-	--io.input(pools_file)
-	--pools = io.read("*all")
-	--slurm.log_info("Pools file:\n%s", pools)
-
-	--This specifies pools inline:
-	local pools
-	pools ="\
-{\
-\"pools\":\
-  [\
-    { \"id\":\"pool1\", \"quantity\":1000, \"granularity\":1024 },\
-    { \"id\":\"pool2\", \"quantity\":5, \"granularity\":2 },\
-    { \"id\":\"pool3\", \"quantity\":4, \"granularity\":1 },\
-    { \"id\":\"pool4\", \"quantity\":25000, \"granularity\":1 }\
-  ]\
-}"
-
-	return slurm.SUCCESS, pools
+	-- Pools are not being used with DWS.
+	return slurm.SUCCESS
 end
 
 --[[
@@ -504,13 +488,13 @@ function slurm_bb_job_teardown(job_id, job_script, hurry)
 	local workflow = DWS(make_workflow_name(job_id))
 	local done, err = workflow:set_workflow_state_and_wait("Teardown", hurry_flag)
 	if done == false then
-		slurm.log_error("%s: slurm_bb_job_teardown(). %s", lua_script_name, err)
+		slurm.log_error("%s: slurm_bb_job_teardown(), workflow=%s: %s", lua_script_name, workflow.name, err)
 		return slurm.ERROR, err
 	end
 
 	done, err = workflow:delete()
 	if done == false then
-		slurm.log_error("%s: slurm_bb_job_teardown(). %s", lua_script_name, err)
+		slurm.log_error("%s: slurm_bb_job_teardown(), workflow=%s, delete: %s", lua_script_name, workflow.name, err)
 		return slurm.ERROR, err
 	end
 
@@ -535,7 +519,7 @@ function slurm_bb_setup(job_id, uid, gid, pool, bb_size, job_script)
 	local workflow = DWS(workflow_name)
 	local done, err = make_workflow(workflow, job_script, job_id, uid, gid)
 	if done == false then
-		slurm.log_error("%s: slurm_bb_setup(). %s", lua_script_name, err)
+		slurm.log_error("%s: slurm_bb_setup(), workflow=%s, make_workflow: %s", lua_script_name, workflow_name, err)
 		return slurm.ERROR, err
 	end
 
@@ -543,19 +527,19 @@ function slurm_bb_setup(job_id, uid, gid, pool, bb_size, job_script)
 	-- be waiting in the Workflow.
 	done, err = workflow:wait_for_status_complete(60)
 	if done == false then
-		slurm.log_error("%s: slurm_bb_setup(). %s", lua_script_name, err)
+		slurm.log_error("%s: slurm_bb_setup(), workflow=%s, waiting for Proposal state to complete: %s", lua_script_name, workflow_name, err)
 		return slurm.ERROR, err
 	end
 
 	local done, err = workflow:set_desired_state("Setup")
 	if done == err then
-		slurm.log_error("%s: slurm_bb_setup(). %s", lua_script_name, err)
+		slurm.log_error("%s: slurm_bb_setup(), workflow=%s, setting state to Setup: %s", lua_script_name, workflow_name, err)
 		return done, err
 	end
 
 	done, err = workflow:wait_for_status_complete(60)
 	if done == err then
-		slurm.log_error("%s: slurm_bb_setup(). %s", lua_script_name, err)
+		slurm.log_error("%s: slurm_bb_setup(), workflow=%s, waiting for Setup state to complete: %s", lua_script_name, workflow_name, err)
 		return done, err
 	end
 
@@ -576,7 +560,7 @@ function slurm_bb_data_in(job_id, job_script)
 	local workflow = DWS(make_workflow_name(job_id))
 	local done, err = workflow:set_workflow_state_and_wait("DataIn")
 	if done == false then
-		slurm.log_error("%s: slurm_bb_data_in(). %s", lua_script_name, err)
+		slurm.log_error("%s: slurm_bb_data_in(), workflow=%s: %s", lua_script_name, workflow.name, err)
 		return slurm.ERROR, err
 	end
 
@@ -596,8 +580,8 @@ end
 --will be changed to this number. A commented out example is given.
 --]]
 function slurm_bb_real_size(job_id)
-	slurm.log_info("%s: slurm_bb_real_size(). job id:%s",
-		lua_script_name, job_id)
+	--slurm.log_info("%s: slurm_bb_real_size(). job id:%s",
+	--	lua_script_name, job_id)
 	--return slurm.SUCCESS, "10000"
 	return slurm.SUCCESS
 end
@@ -615,8 +599,8 @@ end
 --environment. A commented out example is given.
 --]]
 function slurm_bb_paths(job_id, job_script, path_file)
-	slurm.log_info("%s: slurm_bb_paths(). job id:%s, job script:%s, path file:%s",
-		lua_script_name, job_id, job_script, path_file)
+	--slurm.log_info("%s: slurm_bb_paths(). job id:%s, job script:%s, path file:%s",
+	--	lua_script_name, job_id, job_script, path_file)
 	--io.output(path_file)
 	--io.write("FOO=BAR")
 	return slurm.SUCCESS
@@ -636,7 +620,7 @@ function slurm_bb_pre_run(job_id, job_script)
 	local workflow = DWS(make_workflow_name(job_id))
 	local done, err = workflow:set_workflow_state_and_wait("PreRun")
 	if done == false then
-		slurm.log_error("%s: slurm_bb_pre_run(). %s", lua_script_name, err)
+		slurm.log_error("%s: slurm_bb_pre_run(), workflow=%s: %s", lua_script_name, workflow.name, err)
 		return slurm.ERROR, err
 	end
 
@@ -657,7 +641,7 @@ function slurm_bb_post_run(job_id, job_script)
 	local workflow = DWS(make_workflow_name(job_id))
 	local done, err = workflow:set_workflow_state_and_wait("PostRun")
 	if done == false then
-		slurm.log_error("%s: slurm_bb_post_run(). %s", lua_script_name, err)
+		slurm.log_error("%s: slurm_bb_post_run(), workflow=%s: %s", lua_script_name, workflow.name, err)
 		return slurm.ERROR, err
 	end
 
@@ -678,7 +662,7 @@ function slurm_bb_data_out(job_id, job_script)
 	local workflow = DWS(make_workflow_name(job_id))
 	local done, err = workflow:set_workflow_state_and_wait("DataOut")
 	if done == false then
-		slurm.log_error("%s: slurm_bb_data_out(). %s", lua_script_name, err)
+		slurm.log_error("%s: slurm_bb_data_out(), workflow=%s: %s", lua_script_name, workflow.name, err)
 		return slurm.ERROR, err
 	end
 
@@ -690,7 +674,7 @@ end
 --
 --This function is called asynchronously and is not required to return quickly.
 --
---This function is called when "scontrol show bbstat" is run. It recieves a
+--This function is called when "scontrol show bbstat" is run. It receives a
 --variable number of arguments - whatever arguments are after "bbstat".
 --For example:
 --
@@ -702,21 +686,36 @@ end
 --value will be printed where the scontrol command was run. If this function
 --returns slurm.ERROR, then this function's second return value is ignored and
 --an error message will be printed instead.
---
---The example in this function simply prints the arguments that were given.
 --]]
 function slurm_bb_get_status(...)
-	local i, v, args
-	slurm.log_info("%s: slurm_bb_get_status().", lua_script_name)
+	--slurm.log_info("%s: slurm_bb_get_status().", lua_script_name)
+
+	local ret = slurm.ERROR
+	local msg = "Usage: workflow <job-id>"
 
 	-- Create a table from variable arg list
-	args = {...}
+	-- NOTE: The args[] array index begins at 1.
+	local args = {...}
 	args.n = select("#", ...)
 
-	for i,v in ipairs(args) do
-		slurm.log_info("arg %u: \"%s\"", i, tostring(v))
+	if args.n == 2 and args[1] == "workflow" then
+		local done = false
+		local jid = args[2]
+		if string.find(jid, "^%d+$") == nil then
+			msg = "A job ID must contain only digits."
+		else
+			local workflow = DWS(make_workflow_name(jid))
+			done, msg = workflow:get_current_state()
+		end
+		if done == true then
+			msg = "desiredState=" .. msg["desiredState"] .. " currentState=" .. msg["currentState"] .. " status=" .. msg["status"]
+			ret = slurm.SUCCESS
+		end
 	end
 
-	return slurm.SUCCESS, "Status return message\n"
+	if ret == slurm.ERROR then
+		slurm.log_error("%s: slurm_bb_get_status(%s): %s", lua_script_name, table.concat(args, ", "), msg)
+	end
+	return ret, msg
 end
 

@@ -655,6 +655,9 @@ describe("Burst buffer helpers", function()
 			if IS_NOT_K8S then
 				assert.stub(io.popen).was_called()
 			end
+			if err ~= nil then
+				print(err)
+			end
 			assert.is_true(done, err)
 			verify_filled_template(workflow, WLMID_PLACEHOLDER, jobID, userID, groupID)
 			assert.is_not_nil(string.find(workflow.yaml, "dwDirectives: %[%]"))
@@ -681,6 +684,7 @@ describe("Burst buffer helpers", function()
 			if IS_NOT_K8S then
 				assert.stub(io.popen).was_called()
 			end
+			print("Expect an error message here: " .. err)
 			assert.is_not_true(done, err)
 			assert.is_not_nil(string.find(err, result_wanted))
 
@@ -790,6 +794,7 @@ describe("Slurm API", function()
 			assert.stub(io.popen).was_called(2)
 		end
 		assert.is_equal(ret, slurm.SUCCESS)
+		assert.is_nil(err, err)
 	end)
 
 	it("slurm_bb_job_process can validate workflow from job script with directives", function()
@@ -810,6 +815,7 @@ describe("Slurm API", function()
 		if IS_NOT_K8S then
 			assert.stub(io.popen).was_called(1)
 		end
+		print("Expect an error message here: " .. err)
 		assert.is_equal(ret, slurm.ERROR)
 		assert.is_not_nil(string.find(err, result_wanted))
 	end)
@@ -838,6 +844,7 @@ describe("Slurm API", function()
 			assert.stub(io.popen).was_called(4)
 		end
 		assert.is_equal(ret, slurm.SUCCESS)
+		assert.is_nil(err, err)
 	end
 
 	local call_bb_teardown = function(hurry)
@@ -861,9 +868,12 @@ describe("Slurm API", function()
 			assert.stub(io.popen).was_called(3)
 		end
 		assert.is_equal(ret, slurm.SUCCESS)
+		assert.is_nil(err, err)
 	end
 
 	-- For DataIn, PreRun, PostRun, and DataOut.
+	-- Call the appropriate slurm_bb_* function to change the state then
+	-- call slurm_bb_get_status() to confirm the change.
 	local call_bb_state = function(new_state)
 		local set_state_result_wanted = "workflow.dws.cray.hpe.com/" .. workflow_name .. " patched\n"
 		local status_complete_result_wanted = "desiredState=" .. new_state .. "\ncurrentState=" .. new_state .. "\nstatus=Completed\n"
@@ -885,24 +895,25 @@ describe("Slurm API", function()
 			assert.stub(io.popen).was_called(2)
 		end
 		assert.is_equal(ret, slurm.SUCCESS)
+		assert.is_nil(err, err)
 
 		dwsmq_enqueue(true, status_complete_result_wanted)
+		local bb_status_wanted = "desiredState=" .. new_state .. " currentState=" .. new_state .. " status=Completed"
 		if IS_NOT_K8S then
 			io.popen:clear()
 		end
-		local done, err = workflow:wait_for_status_complete(60)
+		local ret, msg = slurm_bb_get_status("workflow", jobID)
 		if IS_NOT_K8S then
 			assert.stub(io.popen).was_called()
 		end
-		assert.is_true(done, err)
-		assert.is_equal(err["desiredState"], new_state)
-		assert.is_equal(err["currentState"], new_state)
-		assert.is_equal(err["status"], "Completed")
+		print(msg)
+		assert.is_equal(ret, slurm.SUCCESS)
+		assert.is_equal(msg, bb_status_wanted)
 	end
 
 	it("slurm_bb_setup and slurm_bb_teardown with hurry flag can setup and destroy a workflow", function()
 		call_bb_setup()
-		call_bb_teardown(true)
+		call_bb_teardown("true")
 	end)
 
 	it("slurm_bb_setup through all other states", function()
@@ -912,6 +923,101 @@ describe("Slurm API", function()
 		call_bb_state("PostRun")
 		call_bb_state("DataOut")
 		call_bb_teardown()
+	end)
+
+	context("negatives for slurm_bb_get_status validation", function()
+
+		local call_bb_status_negative = function(someID)
+			local status_wanted = "A job ID must contain only digits."
+			if IS_NOT_K8S then
+				io.popen:clear()
+			end
+			local ret, msg = slurm_bb_get_status("workflow", someID)
+			if IS_NOT_K8S then
+				assert.stub(io.popen).was_not_called()
+			end
+			print(msg)
+			assert.is_equal(ret, slurm.ERROR)
+			assert.is_equal(msg, status_wanted)
+		end
+
+		it("detects invalid job names", function()
+			local cases = {
+				"a21",
+				"; $(nefarious stuff)",
+				"B21",
+			}
+			for k in ipairs(cases) do
+				call_bb_status_negative(cases[k])
+			end
+		end)
+	end)
+
+	insulate("error messages from data_in through data_out", function()
+		-- This is all about verifying the content of the error log
+		-- message.
+
+		local log_error_wanted
+
+		-- Capture the output of slurm.log_error() and validate it.
+		-- The 'insulate' context will revert this on completion of
+		-- the context.
+		_G.slurm.log_error = function(...)
+			local errmsg = string.format(...)
+			print("Message to validate: " .. errmsg)
+			assert.is_equal(errmsg, log_error_wanted)
+		end
+
+		-- For DataIn, PreRun, PostRun, and DataOut.
+		-- Call the appropriate slurm_bb_* function to induce an
+		-- error condition.
+		local call_bb_state_negative = function(new_state)
+			local set_state_result_wanted = 'Error from server (NotFound): workflows.dws.cray.hpe.com "' .. workflow_name .. '" not found\n'
+			dwsmq_enqueue(false, set_state_result_wanted)
+
+			if IS_NOT_K8S then
+				io.popen:clear()
+			end
+			local funcs = {
+				["DataIn"] = {slurm_bb_data_in, "slurm_bb_data_in"},
+				["PreRun"] = {slurm_bb_pre_run, "slurm_bb_pre_run"},
+				["PostRun"] = {slurm_bb_post_run, "slurm_bb_post_run"},
+				["DataOut"] = {slurm_bb_data_out, "slurm_bb_data_out"},
+			}
+
+			log_error_wanted = lua_script_name .. ": " .. funcs[new_state][2] .. "(), workflow=" .. workflow_name .. ": set_desired_state: " .. set_state_result_wanted
+
+			local ret, err = funcs[new_state][1](jobID, job_script_name)
+			if IS_NOT_K8S then
+				assert.stub(io.popen).was_called(1)
+			end
+			assert.is_equal(ret, slurm.ERROR)
+			assert.is_equal(err, "set_desired_state: " .. set_state_result_wanted)
+		end
+
+		it("slurm_bb_data_in through slurm_bb_data_out error messages", function()
+			call_bb_state_negative("DataIn")
+			call_bb_state_negative("PreRun")
+			call_bb_state_negative("PostRun")
+			call_bb_state_negative("DataOut")
+		end)
+	end)
+
+	it("slurm_bb_pools is called", function()
+		local ret, pools = slurm_bb_pools()
+		assert.is_equal(ret, slurm.SUCCESS)
+		assert.is_nil(pools, pools)
+	end)
+
+	it("slurm_bb_paths is called", function()
+		local path_file = "/some/path/file"
+		local ret = slurm_bb_paths(jobID, job_script_name, path_file)
+		assert.is_equal(ret, slurm.SUCCESS)
+	end)
+
+	it("slurm_bb_real_size is called", function()
+		local ret = slurm_bb_real_size(jobID)
+		assert.is_equal(ret, slurm.SUCCESS)
 	end)
 end)
 
