@@ -30,8 +30,8 @@ TAG ?=  # specify a string like TAG="-t mytag"
 test-mocks: VALIDATOR ?= testsuite/unit/bin/validate 
 test-mocks: CRDFILE=testsuite/submodules/dws/config/crd/bases/dws.cray.hpe.com_workflows.yaml
 test-mocks:
-	CRDFILE=$(CRDFILE) VALIDATOR=$(VALIDATOR) busted $(TAG) $(OUTPUT_HANDLER) testsuite/unit/src/burst_buffer/dws-test.lua
+	MOCK_SLURM=yes CRDFILE=$(CRDFILE) VALIDATOR=$(VALIDATOR) busted $(TAG) $(OUTPUT_HANDLER) testsuite/unit/src/burst_buffer/dws-test.lua
 
-test-live:
-	RUN_LIVE=yes busted $(TAG) $(OUTPUT_HANDLER) testsuite/unit/src/burst_buffer/dws-test.lua
+test-realk8s:
+	MOCK_SLURM=yes REAL_K8S=yes busted $(TAG) $(OUTPUT_HANDLER) testsuite/unit/src/burst_buffer/dws-test.lua
 

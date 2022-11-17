@@ -6,6 +6,9 @@ luac.out
 *.zip
 *.tar.gz
 
+# KIND config file
+tools/kind-config.yaml
+
 # Object files
 *.o
 *.os
