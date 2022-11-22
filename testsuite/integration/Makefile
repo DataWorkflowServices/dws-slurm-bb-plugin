@@ -31,13 +31,14 @@ setup:
 		install_dependencies ; \
 		prep_kubeconfig ; \
 	}
-	cd ../submodules/dws && make docker-build kind-push deploy
+	cd ../submodules/dws && KIND_CLUSTER=dws make docker-build kind-push deploy
 	cd slurm && docker compose up --build --wait
 	docker network connect slurm_default dws-control-plane
 
 
 .PHONY: test
-test: setup
+test:
+	kubectl config use-context kind-dws
 
 .PHONY: clean
 clean:
@@ -45,4 +46,4 @@ clean:
 	cd slurm && docker compose down || echo "Slurm cleanup failed"
 	source kind/kind.sh && teardown || echo "Kind cleanup failed"
 
-all: setup test clean
+all: setup test
