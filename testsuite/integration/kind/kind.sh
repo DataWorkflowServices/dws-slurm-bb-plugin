@@ -71,6 +71,13 @@ prep_kubeconfig () {
   cp ~/.kube/config kubeconfig
   yq -i e '(.clusters | map(select(.name=="kind-dws")))[0].cluster.server |= "https://dws-control-plane:6443"' kubeconfig
   yq -i e '.current-context |= "kind-dws"' kubeconfig
+  chmod a+r kubeconfig
+}
+
+get_info () {
+  set -e
+  ls -al
+  id $(whoami)
 }
 
 teardown () {

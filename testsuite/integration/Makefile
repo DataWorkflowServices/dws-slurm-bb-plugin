@@ -32,16 +32,24 @@ setup:
 		prep_kubeconfig ; \
 	}
 	cd ../submodules/dws && KIND_CLUSTER=dws make docker-build kind-push deploy
-	cd slurm && docker compose up --build --wait
+	cd slurm && docker compose build && docker compose up --wait
+	docker exec slurmctld /bin/bash -c "ls -alr /home/"
 	docker network connect slurm_default dws-control-plane
 
 
 .PHONY: test
 test:
-	kubectl config use-context kind-dws
+	source kind/kind.sh && get_info
+	docker-compose up --build
+
+.PHONY: reports
+reports:
+	mkdir reports
+	docker cp -a integration-test:/reports/ .
 
 .PHONY: clean
 clean:
+	docker-compose down || echo "Integration test container cleanup failed"
 	docker network disconnect slurm_default dws-control-plane || echo "Docker network cleanup failed"
 	cd slurm && docker compose down || echo "Slurm cleanup failed"
 	source kind/kind.sh && teardown || echo "Kind cleanup failed"

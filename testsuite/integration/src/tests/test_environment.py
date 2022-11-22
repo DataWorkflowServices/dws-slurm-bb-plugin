@@ -59,7 +59,9 @@ def _(slurmctld):
     """the kube-system UID is queried from slurmctld."""
     rc,out = slurmctld.exec_run(["kubectl", "get", "namespace","-o=json", "kube-system"],
         user="slurm")
-    assert rc==0, "non-zero return code: \n" + str(out)
+    _,out2 = slurmctld.exec_run(["ls", "-alr", "/home/slurm/.kube/"],
+        user="slurm")
+    assert rc==0, "non-zero return code: \n" + str(out) + "\n" + str(out2)
     return json.loads(str(out, 'utf-8'))["metadata"]["uid"]
 
 
@@ -71,4 +73,4 @@ def _(k8s_nodes):
 @then('the UIDs match and the cluster is the same')
 def _(kube_system_uid, kube_system_uid_from_slurmctld):
     """the UIDs match and the cluster is the same."""
-    assert kube_system_uid == kube_system_uid_from_slurm
+    assert kube_system_uid == kube_system_uid_from_slurmctld
