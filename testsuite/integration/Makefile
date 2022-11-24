@@ -22,8 +22,8 @@ SHELL = /usr/bin/env bash -o pipefail
 
 SKIP_KIND_GENERATION?=""
 
-.PHONY: setup
-setup:
+.PHONY: setup-kind
+setup-kind:
 	@{ \
 		set -e ; \
 		source kind/kind.sh ; \
@@ -31,16 +31,26 @@ setup:
 		install_dependencies ; \
 		prep_kubeconfig ; \
 	}
-	cd ../submodules/dws && KIND_CLUSTER=dws make docker-build kind-push deploy
 	cd slurm && docker compose build && docker compose up --wait
-	docker exec slurmctld /bin/bash -c "ls -alr /home/"
 	docker network connect slurm_default dws-control-plane
 
+.PHONY: setup-dws
+setup-dws:
+	@{\
+		set -e ; \
+		cd ../submodules/dws ; \
+		docker buildx build -t local/dws-operator:test --cache-from="/tmp/.buildx-cache" --load . ; \
+		IMAGE_TAG_BASE=local/dws-operator VERSION=test KIND_CLUSTER=dws make kind-push deploy ; \
+		kubectl wait deployment -n dws-operator-system dws-operator-controller-manager --for condition=Available=True ; \
+	}
+
+.PHONY: setup
+setup: setup-kind setup-dws
 
 .PHONY: test
 test:
-	source kind/kind.sh && get_info
-	docker-compose up --build
+	docker compose build
+	docker-compose up
 
 .PHONY: reports
 reports:

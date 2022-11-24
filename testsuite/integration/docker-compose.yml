@@ -21,9 +21,11 @@ version: "2.2"
 
 services:
   integration-test:
-    image: integration-test:${TAG:-test}
+    image: local/integration-test:${TAG:-test}
     build:
       context: .
+      cache_from:
+        - "/tmp/.buildx-cache"
     container_name: integration-test
     privileged: true
     hostname: integration-test

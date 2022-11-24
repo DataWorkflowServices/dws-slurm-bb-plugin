@@ -74,12 +74,6 @@ prep_kubeconfig () {
   chmod a+r kubeconfig
 }
 
-get_info () {
-  set -e
-  ls -al
-  id $(whoami)
-}
-
 teardown () {
   rm kubeconfig
   rm kind-config.yaml

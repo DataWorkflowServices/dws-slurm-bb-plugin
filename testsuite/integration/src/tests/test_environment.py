@@ -59,9 +59,7 @@ def _(slurmctld):
     """the kube-system UID is queried from slurmctld."""
     rc,out = slurmctld.exec_run(["kubectl", "get", "namespace","-o=json", "kube-system"],
         user="slurm")
-    _,out2 = slurmctld.exec_run(["ls", "-alr", "/home/slurm/.kube/"],
-        user="slurm")
-    assert rc==0, "non-zero return code: \n" + str(out) + "\n" + str(out2)
+    assert rc==0, "non-zero return code: \n" + str(out)
     return json.loads(str(out, 'utf-8'))["metadata"]["uid"]
 
 
