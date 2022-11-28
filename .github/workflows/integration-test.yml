@@ -102,3 +102,10 @@ jobs:
         with:
           name: integration-test-results
           path: testsuite/integration/reports
+
+      - name: Check Integration Test
+        run: test $(docker inspect integration-test --format="{{.State.ExitCode}}") -eq 0
+
+#TODO: Confirm layer caching actually works
+
+#TODO: Publish test results in check run
