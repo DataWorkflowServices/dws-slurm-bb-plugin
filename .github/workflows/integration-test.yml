@@ -53,9 +53,9 @@ jobs:
         uses: actions/cache@v3
         with:
           path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-single-buildx-${{ github.sha }}
+          key: ${{ runner.os }}-single-buildx-gha-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-single-buildx
+            ${{ runner.os }}-single-buildx-gha
 
       - name: Build Slurm
         uses: docker/build-push-action@v3
@@ -65,8 +65,8 @@ jobs:
           tags: slurm-bb:test
           build-args: |
             SLURM_TAG=slurm-22-05-4-1
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Build DWS
         uses: docker/build-push-action@v3
@@ -74,8 +74,8 @@ jobs:
           context: testsuite/submodules/dws
           push: false
           tags: local/dws-operator:test
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Build Test
         uses: docker/build-push-action@v3
@@ -83,16 +83,8 @@ jobs:
           context: testsuite/integration
           push: false
           tags: local/integration-test:test
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
-
-        # Temp fix
-        # https://github.com/docker/build-push-action/issues/252
-        # https://github.com/moby/buildkit/issues/1896
-      - name: Move cache
-        run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+          cache-from: type=gha
+          cache-to: type=gha
 
       - name: Integration Test
         run: cd testsuite/integration && make setup test reports
