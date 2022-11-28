@@ -1,0 +1,120 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+#
+# Copyright 2022 Hewlett Packard Enterprise Development LP
+# Other additional copyright holders may be indicated within.
+#
+# The entirety of this work is licensed under the Apache License,
+# Version 2.0 (the "License"); you may not use this file except
+# in compliance with the License.
+#
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+name: Publish Unit Test
+on:
+  workflow_call:
+  workflow_run:
+    workflows: [Unit Test]
+    types:
+      - completed
+
+jobs:
+  publish:
+    name: Publish
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          name: unit-test-results
+      - name: Publish Unit Test Results
+        uses: scacap/action-surefire-report@v1
+        with:
+          report_paths: "**/*.junit.xml"
+          check_name: "Unit Test Report"
+          commit: ${{ github.event.workflow_run.head_sha }}
+      - name: Publish Event File
+        uses: actions/upload-artifact@v2
+        if: ${{ runner.debug }}
+        with:
+          name: publish-unit-event-file
+          path: ${{ github.event_path }}
+
+  publish_checkrun:
+    name: Publish Checkrun
+    if: ${{ github.event_name == 'workflow_run' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Download artifacts'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
+               owner: context.repo.owner,
+               repo: context.repo.repo,
+               run_id: context.payload.workflow_run.id,
+            });
+            let matchArtifactTestResults = allArtifacts.data.artifacts.filter((artifact) => {
+              return artifact.name == "unit-test-results"
+            })[0];
+            let matchArtifactEventFile = allArtifacts.data.artifacts.filter((artifact) => {
+              return artifact.name == "event-file"
+            })[0];
+            let downloadTestResults = await github.rest.actions.downloadArtifact({
+               owner: context.repo.owner,
+               repo: context.repo.repo,
+               artifact_id: matchArtifactTestResults.id,
+               archive_format: 'zip',
+            });
+            let downloadEventFile = await github.rest.actions.downloadArtifact({
+               owner: context.repo.owner,
+               repo: context.repo.repo,
+               artifact_id: matchArtifactEventFile.id,
+               archive_format: 'zip',
+            });
+            let fs = require('fs');
+            fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/unit-test-results.zip`, Buffer.from(downloadTestResults.data));
+            fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/event.json.zip`, Buffer.from(downloadEventFile.data));
+
+
+      - name: Unzip artifacts
+        run: unzip unit-test-results.zip && unzip event.json.zip
+
+      - name: Publish Unit Test Results
+        uses: scacap/action-surefire-report@v1
+        if: ( github.event.workflow_run.event == 'push' ) || ( github.event.repository.full_name != github.event.workflow_run.head_repository.full_name )
+        with:
+          report_paths: "**/*.junit.xml"
+          check_name: "Unit Test Report"
+          commit: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Get PR Number
+        if: github.event.workflow_run.event == 'pull_request'
+        run: |
+          NUM="$(jq -r ".number" event.json)"
+          echo "TEST_PR_NUMBER=$NUM" >> $GITHUB_ENV 
+
+      - name: Add Coverage PR Comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        if: github.event.workflow_run.event == 'pull_request'
+        with:
+          path: code-coverage-results.md
+          number: ${{ env.TEST_PR_NUMBER }}
+
+      - name: Publish Event File
+        uses: actions/upload-artifact@v2
+        if: ${{ runner.debug }}
+        with:
+          name: publish-unit-event-file
+          path: ${{ github.event_path }}
+
+

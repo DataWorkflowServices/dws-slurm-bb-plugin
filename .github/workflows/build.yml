@@ -19,7 +19,7 @@
 # limitations under the License.
 #
 
-name: Deploy
+name: Build
 on:
   push:
     branches:
@@ -28,5 +28,11 @@ on:
 jobs:
   unit-test:
     uses: ./.github/workflows/unit-test.yml
+  publish-unit-test:
+    uses: ./.github/workflows/publish-unit-test.yml
+    needs: unit-test
   integration-test:
     uses: ./.github/workflows/integration-test.yml
+  publish-integration-test:
+    uses: ./.github/workflows/publish-integration-test.yml
+    needs: integration-test

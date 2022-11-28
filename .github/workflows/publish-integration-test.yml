@@ -21,14 +21,30 @@
 
 name: Publish Unit Test
 on:
+  workflow_call:
   workflow_run:
-    workflows: [Unit Test]
+    workflows: [Integration Test]
     types:
       - completed
 
 jobs:
-  test:
+  publish:
     name: Publish
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          name: integration-test-results
+      - name: Publish Integration Test Results
+        uses: scacap/action-surefire-report@v1
+        with:
+          report_paths: "**/*.junit.xml"
+          check_name: "Integration Test Report"
+          commit: ${{ github.event.workflow_run.head_sha }}
+  publish_checkrun:
+    name: Publish Checkrun
+    if: ${{ github.event_name == 'workflow_run' }}
     runs-on: ubuntu-latest
     steps:
       - name: 'Download artifacts'
@@ -41,7 +57,7 @@ jobs:
                run_id: context.payload.workflow_run.id,
             });
             let matchArtifactTestResults = allArtifacts.data.artifacts.filter((artifact) => {
-              return artifact.name == "unit-test-results"
+              return artifact.name == "integration-test-results"
             })[0];
             let matchArtifactEventFile = allArtifacts.data.artifacts.filter((artifact) => {
               return artifact.name == "event-file"
@@ -64,28 +80,15 @@ jobs:
 
 
       - name: Unzip artifacts
-        run: unzip unit-test-results.zip && unzip event.json.zip
+        run: unzip integration-test-results.zip && unzip event.json.zip
 
-      - name: Publish Unit Test Results
+      - name: Publish Integration Test Results
         uses: scacap/action-surefire-report@v1
         if: ( github.event.workflow_run.event == 'push' ) || ( github.event.repository.full_name != github.event.workflow_run.head_repository.full_name )
         with:
           report_paths: "**/*.junit.xml"
           check_name: "Unit Test Report"
           commit: ${{ github.event.workflow_run.head_sha }}
-
-      - name: Get PR Number
-        if: github.event.workflow_run.event == 'pull_request'
-        run: |
-          NUM="$(jq -r ".number" event.json)"
-          echo "TEST_PR_NUMBER=$NUM" >> $GITHUB_ENV 
-
-      - name: Add Coverage PR Comment
-        uses: marocchino/sticky-pull-request-comment@v2
-        if: github.event.workflow_run.event == 'pull_request'
-        with:
-          path: code-coverage-results.md
-          number: ${{ env.TEST_PR_NUMBER }}
 
       - name: Publish Event File
         uses: actions/upload-artifact@v2
