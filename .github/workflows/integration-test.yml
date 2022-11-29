@@ -22,13 +22,6 @@
 name: Integration Test
 on:
   workflow_call:
-  pull_request:
-    branches:
-      - "main"
-  push:
-    branches:
-      - "**"
-      - "!main"
 
 jobs:
   test:
@@ -36,12 +29,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
 
+      # Publish event file if debug is enabled
       - name: Publish Event File
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
+        if: ${{ runner.debug }}
         with:
-          name: event-file
+          name: integration-test-event-file
           path: ${{ github.event_path }}
 
+      # Needed to maintain branch scope for separate docker caches
       - name: Get Branch
         run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
@@ -49,9 +45,15 @@ jobs:
         with:
           submodules: recursive
 
+      # Requireed for docker caching
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v2
 
+      # Pre-build slurm image with docker cache. This will also generate an
+      # inline cache used by the docker build in the "Integration Test" job.
+      # Docker caches are need to be image and branch scoped. The first build
+      # on new branches will need to build the image from scratch. Expect 10
+      # minutes for a full slurm build.
       - name: Build Slurm
         uses: docker/build-push-action@v3
         with:
@@ -64,6 +66,8 @@ jobs:
           cache-from: type=gha,scope=slurm-${{ env.BRANCH }}
           cache-to: type=gha,mode=max,scope=slurm-${{ env.BRANCH }}
 
+      # Pre-build slurm image with docker cache. Expect 3 minutes for a full
+      # DWS build.
       - name: Build DWS
         uses: docker/build-push-action@v3
         with:
@@ -74,16 +78,6 @@ jobs:
           cache-from: type=gha,scope=dws-${{ env.BRANCH }}
           cache-to: type=gha,mode=max,scope=dws-${{ env.BRANCH }}
 
-      - name: Build Test
-        uses: docker/build-push-action@v3
-        with:
-          context: testsuite/integration
-          push: false
-          load: true
-          tags: local/integration-test:test
-          cache-from: type=gha,scope=integration-$${{ env.BRANCH }}
-          cache-to: type=gha,mode=max,scope=integration-${{ env.BRANCH }}
-
       - name: Integration Test
         run: cd testsuite/integration && make setup test reports
 
@@ -93,5 +87,8 @@ jobs:
           name: integration-test-results
           path: testsuite/integration/reports
 
+      # The "Integration Test" step should never fail, otherwise the test
+      # reports will not be available. This step will check the integration
+      # test container to see if a failure occured.
       - name: Check Integration Test
         run: test $(docker inspect integration-test --format="{{.State.ExitCode}}") -eq 0
