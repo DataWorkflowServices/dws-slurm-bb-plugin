@@ -29,5 +29,5 @@ on:
 jobs:
   unit-test:
     uses: ./.github/workflows/unit-test.yml
-  # integration-test:
-  #   uses: ./.github/workflows/integration-test.yml
+  integration-test:
+    uses: ./.github/workflows/integration-test.yml

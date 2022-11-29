@@ -33,15 +33,6 @@ jobs:
     if: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v3
-        with:
-          name: unit-test-results
-      - name: Publish Unit Test Results
-        uses: scacap/action-surefire-report@v1
-        with:
-          report_paths: "**/*.junit.xml"
-          check_name: "Unit Test Report"
-          commit: ${{ github.event.workflow_run.head_sha }}
       - name: Publish Event File
         uses: actions/upload-artifact@v3
         if: ${{ runner.debug }}
@@ -49,11 +40,28 @@ jobs:
           name: publish-unit-event-file
           path: ${{ github.event_path }}
 
+      - uses: actions/download-artifact@v3
+        with:
+          name: unit-test-results
+
+      - name: Publish Unit Test Results
+        uses: scacap/action-surefire-report@v1
+        with:
+          report_paths: "**/*.junit.xml"
+          check_name: "Unit Test Report"
+
   publish_checkrun:
     name: Publish Checkrun
     if: ${{ github.event_name == 'workflow_run' }}
     runs-on: ubuntu-latest
     steps:
+      - name: Publish Event File
+        uses: actions/upload-artifact@v2
+        if: ${{ runner.debug }}
+        with:
+          name: publish-unit-event-file
+          path: ${{ github.event_path }}
+
       - name: 'Download artifacts'
         uses: actions/github-script@v6
         with:
@@ -67,7 +75,7 @@ jobs:
               return artifact.name == "unit-test-results"
             })[0];
             let matchArtifactEventFile = allArtifacts.data.artifacts.filter((artifact) => {
-              return artifact.name == "event-file"
+              return artifact.name == "unit-test-event-file"
             })[0];
             let downloadTestResults = await github.rest.actions.downloadArtifact({
                owner: context.repo.owner,
@@ -109,12 +117,3 @@ jobs:
         with:
           path: code-coverage-results.md
           number: ${{ env.TEST_PR_NUMBER }}
-
-      - name: Publish Event File
-        uses: actions/upload-artifact@v3
-        if: ${{ runner.debug }}
-        with:
-          name: publish-unit-event-file
-          path: ${{ github.event_path }}
-
-

@@ -23,7 +23,7 @@ name: Publish Unit Test
 on:
   workflow_call:
   workflow_run:
-    workflows: [Integration Test]
+    workflows: [Pull Request]
     types:
       - completed
 
@@ -33,6 +33,13 @@ jobs:
     if: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-latest
     steps:
+      - name: Publish Event File
+        uses: actions/upload-artifact@v3
+        if: ${{ runner.debug }}
+        with:
+          name: publish-integration-event-file
+          path: ${{ github.event_path }}
+
       - uses: actions/download-artifact@v3
         with:
           name: integration-test-results
@@ -42,20 +49,19 @@ jobs:
         with:
           report_paths: "**/*.junit.xml"
           check_name: "Integration Test Report"
-          commit: ${{ github.event.workflow_run.head_sha }}
-
-      - name: Publish Event File
-        uses: actions/upload-artifact@v3
-        if: ${{ runner.debug }}
-        with:
-          name: publish-integration-event-file
-          path: ${{ github.event_path }}
           
   publish_checkrun:
     name: Publish Checkrun
     if: ${{ github.event_name == 'workflow_run' }}
     runs-on: ubuntu-latest
     steps:
+      - name: Publish Event File
+        uses: actions/upload-artifact@v3
+        if: ${{ runner.debug }}
+        with:
+          name: publish-integration-event-file
+          path: ${{ github.event_path }}
+
       - name: 'Download artifacts'
         uses: actions/github-script@v6
         with:
@@ -68,42 +74,23 @@ jobs:
             let matchArtifactTestResults = allArtifacts.data.artifacts.filter((artifact) => {
               return artifact.name == "integration-test-results"
             })[0];
-            let matchArtifactEventFile = allArtifacts.data.artifacts.filter((artifact) => {
-              return artifact.name == "event-file"
-            })[0];
             let downloadTestResults = await github.rest.actions.downloadArtifact({
                owner: context.repo.owner,
                repo: context.repo.repo,
                artifact_id: matchArtifactTestResults.id,
                archive_format: 'zip',
             });
-            let downloadEventFile = await github.rest.actions.downloadArtifact({
-               owner: context.repo.owner,
-               repo: context.repo.repo,
-               artifact_id: matchArtifactEventFile.id,
-               archive_format: 'zip',
-            });
             let fs = require('fs');
             fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/unit-test-results.zip`, Buffer.from(downloadTestResults.data));
-            fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/event.json.zip`, Buffer.from(downloadEventFile.data));
-
 
       - name: Unzip artifacts
-        run: unzip integration-test-results.zip && unzip event.json.zip
+        run: unzip integration-test-results.zip
 
       - name: Publish Integration Test Results
         uses: scacap/action-surefire-report@v1
-        if: ( github.event.workflow_run.event == 'push' ) || ( github.event.repository.full_name != github.event.workflow_run.head_repository.full_name )
         with:
           report_paths: "**/*.junit.xml"
           check_name: "Unit Test Report"
           commit: ${{ github.event.workflow_run.head_sha }}
-
-      - name: Publish Event File
-        uses: actions/upload-artifact@v3
-        if: ${{ runner.debug }}
-        with:
-          name: publish-integration-event-file
-          path: ${{ github.event_path }}
 
 
