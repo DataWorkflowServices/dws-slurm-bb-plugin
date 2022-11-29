@@ -32,9 +32,12 @@ jobs:
         with:
           submodules: recursive
 
+      # Required to use the "--output" option in the docker build
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
+      # The event file needs to be published during PRs so the
+      # "Publish Unit Test" workflow can look up the PR number.
       - name: Publish Event File
         uses: actions/upload-artifact@v3
         if: ( github.event_name == 'pull_request' ) || runner.debug
@@ -42,6 +45,7 @@ jobs:
           name: unit-test-event-file
           path: ${{ github.event_path }}
 
+      # Run the tests and publish the junit report and raw coverage results
       - name: Unit Tests
         run: docker buildx build
             --target testresults
@@ -49,12 +53,15 @@ jobs:
             --output test_artifacts 
             .
 
+      # Upload junit report. If a test error occurs (e.g. bad Lua syntax) then
+      # the raw code coverage results won't be published.
       - name: Publish Test Results
         uses: actions/upload-artifact@v3
         with:
           name: unit-test-results
           path: test_artifacts
 
+      # Process the raw code coverage results
       - name: Unit Test Artifacts
         run: docker buildx build
             --target testartifacts
@@ -62,6 +69,9 @@ jobs:
             --output test_artifacts 
             .
 
+      # Build the code coverage summary from the coverage results. These
+      # results still need to be uploaded, so the job shouldn't be allowed to
+      # fail yet
       - name: Analyze Coverage Results
         uses: irongut/CodeCoverageSummary@v1.3.0
         with:
@@ -75,24 +85,34 @@ jobs:
           output: both
           thresholds: '80 85'
 
+      # Add the coverage summary to the workflow summary. 
       - name: Adding markdown
         run: cat code-coverage-results.md >> $GITHUB_STEP_SUMMARY
 
+      # Include the coverage summary when uploading test artifacts. This makes
+      # the summary available when the "Publish Unit Test" workflow creates the
+      # code coverage summary PR comment
       - name: Move Coverage Report
         run: mv code-coverage-results.md test_artifacts/
 
+      # Re-upload the test artifacts. This will overwrite the old artifacts,
+      # but the only delta should be the processed coverage results
       - name: Publish Coverage Results
         uses: actions/upload-artifact@v3
         with:
           name: unit-test-results
           path: test_artifacts
 
+      # This stage of the docke build has a separate check for unit test
+      # failures, after the test artifacts have been collected
       - name: Fail on Test Failures
         run: docker buildx build
             --target test
             -t test
             .
 
+      # Re-run the coverage tool, this time failing the build if the coverage
+      # is too low.
       - name: Fail on Low Coverage
         uses: irongut/CodeCoverageSummary@v1.3.0
         with:

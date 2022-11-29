@@ -28,6 +28,9 @@ on:
       - completed
 
 jobs:
+  # During a push event, the user will have the required permissions to create
+  # a checkrun. Since all workflows are included in the same run, the
+  # download-artifact action can be used to retrieve the test reports.
   publish:
     name: Publish
     if: ${{ github.event_name == 'push' }}
@@ -50,6 +53,10 @@ jobs:
           report_paths: "**/*.junit.xml"
           check_name: "Unit Test Report"
 
+  # During a workflow_run event, pull requests coming from a forked repository
+  # will not have the required permissions to create a checkrun or post the
+  # code coverage summary comment. Github actions will trigger this workflow
+  # from the main branch and run the workflow on behalf of the pull request.
   publish_checkrun:
     name: Publish Checkrun
     if: ${{ github.event_name == 'workflow_run' }}
@@ -62,6 +69,12 @@ jobs:
           name: publish-unit-event-file
           path: ${{ github.event_path }}
 
+      # Since this workflow is invoked by a "workflow_run" trigger, the
+      # "download-artifact" action will not find the test results. The
+      # "github-script" action provides a handy javascript environment
+      # with access to a github actions client and basic packages. This
+      # is used to query for the triggering workflow and download the
+      # test results and event file.
       - name: 'Download artifacts'
         uses: actions/github-script@v6
         with:
@@ -93,18 +106,24 @@ jobs:
             fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/unit-test-results.zip`, Buffer.from(downloadTestResults.data));
             fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/event.json.zip`, Buffer.from(downloadEventFile.data));
 
-
       - name: Unzip artifacts
         run: unzip unit-test-results.zip && unzip event.json.zip
 
+      # This action creates a checkrun that publishes the junit test report in
+      # the first workflow run in the commit. This should only be the 
+      # "Pull Request" workflow, but chould end up being the "Build" workflow
+      # if the PR is made from a branch within the same repository
       - name: Publish Unit Test Results
         uses: scacap/action-surefire-report@v1
-        if: ( github.event.workflow_run.event == 'push' ) || ( github.event.repository.full_name != github.event.workflow_run.head_repository.full_name )
         with:
           report_paths: "**/*.junit.xml"
           check_name: "Unit Test Report"
           commit: ${{ github.event.workflow_run.head_sha }}
 
+      # Get the PR number to post the code coverage summary comment to the
+      # correct PR. The triggering workflow's event file is the only way to
+      # retrieve the PR number in this context. The PR number is saved to the
+      # "GITHUB_ENV" environment variable so it can be used below.
       - name: Get PR Number
         if: github.event.workflow_run.event == 'pull_request'
         run: |

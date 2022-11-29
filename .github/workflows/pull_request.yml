@@ -19,15 +19,25 @@
 # limitations under the License.
 #
 
-
+# PRs from forked repos will not have the permissions to invoke check runs
+# (i.e. publish test reports) or publish code coverage summary comments.
+# Instead, the "Publish Integration Test" and "Publish Unit Test" workflows
+# on the main branch will be activated using the "workflow_run" trigger. These
+# workflows will publish the test reports and code coverage summary comment on
+# behalf of the pull request run.
+#
+# NOTE: This workflow is designed to run on PRs from forked repositories and is
+# not guarenteed to run perfectly in PRs from branches in the same repository.
+# In particular, test reports from check runs will be written to the wrong
+# workflow summary, since both the "Build" and "Pull Request" workflows will
+# run in the same repository.
 name: Pull Request
 on:
   pull_request:
-    branches:
-      - "main"
 
 jobs:
   unit-test:
     uses: ./.github/workflows/unit-test.yml
   integration-test:
     uses: ./.github/workflows/integration-test.yml
+    needs: unit-test
