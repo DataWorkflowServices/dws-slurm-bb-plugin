@@ -45,7 +45,7 @@ jobs:
       - name: Publish Event File
         uses: actions/upload-artifact@v2
         with:
-          name: event-file
+          name: unit-test-event-file
           path: ${{ github.event_path }}
 
       - name: Unit Tests
