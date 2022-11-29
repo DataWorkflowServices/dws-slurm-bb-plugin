@@ -23,7 +23,7 @@ name: Publish Unit Test
 on:
   workflow_call:
   workflow_run:
-    workflows: [Unit Test]
+    workflows: [Pull Request]
     types:
       - completed
 
@@ -43,7 +43,7 @@ jobs:
           check_name: "Unit Test Report"
           commit: ${{ github.event.workflow_run.head_sha }}
       - name: Publish Event File
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         if: ${{ runner.debug }}
         with:
           name: publish-unit-event-file
@@ -111,7 +111,7 @@ jobs:
           number: ${{ env.TEST_PR_NUMBER }}
 
       - name: Publish Event File
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         if: ${{ runner.debug }}
         with:
           name: publish-unit-event-file

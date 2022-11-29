@@ -36,12 +36,21 @@ jobs:
       - uses: actions/download-artifact@v3
         with:
           name: integration-test-results
+
       - name: Publish Integration Test Results
         uses: scacap/action-surefire-report@v1
         with:
           report_paths: "**/*.junit.xml"
           check_name: "Integration Test Report"
           commit: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Publish Event File
+        uses: actions/upload-artifact@v3
+        if: ${{ runner.debug }}
+        with:
+          name: publish-integration-event-file
+          path: ${{ github.event_path }}
+          
   publish_checkrun:
     name: Publish Checkrun
     if: ${{ github.event_name == 'workflow_run' }}
@@ -91,9 +100,10 @@ jobs:
           commit: ${{ github.event.workflow_run.head_sha }}
 
       - name: Publish Event File
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
+        if: ${{ runner.debug }}
         with:
-          name: event-file
+          name: publish-integration-event-file
           path: ${{ github.event_path }}
 
 

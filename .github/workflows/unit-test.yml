@@ -22,13 +22,13 @@
 name: Unit Test
 on:
   workflow_call:
-  pull_request:
-    branches:
-      - "main"
-  push:
-    branches:
-      - "**"
-      - "!main"
+  # pull_request:
+  #   branches:
+  #     - "main"
+  # push:
+  #   branches:
+  #     - "**"
+  #     - "!main"
 
 jobs:
   test:
@@ -43,9 +43,10 @@ jobs:
         uses: docker/setup-buildx-action@v2
 
       - name: Publish Event File
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
+        if: ( github.event_name == 'pull_request' ) || runner.debug
         with:
-          name: event-file
+          name: unit-test-event-file
           path: ${{ github.event_path }}
 
       - name: Unit Tests
