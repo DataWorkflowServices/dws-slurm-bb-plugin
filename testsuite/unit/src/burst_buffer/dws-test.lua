@@ -31,6 +31,19 @@ if os.getenv("REAL_K8S") ~= nil then
 	IS_NOT_K8S = false
 end
 
+local REAL_SLURM = true
+if os.getenv("MOCK_SLURM") ~= nil then
+	-- Provide a few logging functions and variables that would have been
+	-- provided by a live slurm environment.
+	REAL_SLURM = false
+	_G.slurm = {
+		ERROR = -1,
+		SUCCESS = 0,
+		log_info = function(...) print(string.format(...)) end,
+		log_error = function(...) print(string.format(...)) end,
+	}
+end
+
 local CRDFILE = os.getenv("CRDFILE")
 if CRDFILE == nil and IS_NOT_K8S then
 	-- The CRD location in the container image.
@@ -323,14 +336,14 @@ describe("The dws library", function()
 			local result_wanted = "desiredState=" .. state .. "\ncurrentState=" .. state .. "\nstatus=Completed\n"
 
 			dwsmq_enqueue(true, result_wanted)
-			local done, err = workflow:wait_for_status_complete(60)
+			local done, status, err = workflow:wait_for_status_complete(60)
 			if IS_NOT_K8S then
 				assert.stub(io.popen).was_called()
 			end
 			assert.is_true(done, err)
-			assert.is_equal(err["desiredState"], state)
-			assert.is_equal(err["currentState"], state)
-			assert.is_equal(err["status"], "Completed")
+			assert.is_equal(status["desiredState"], state)
+			assert.is_equal(status["currentState"], state)
+			assert.is_equal(status["status"], "Completed")
 		end
 
 		-- Check that the resource's hurry flag is as desired.
