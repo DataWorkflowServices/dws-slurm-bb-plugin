@@ -44,3 +44,7 @@ tools/kind-config.yaml
 
 # Slurm Output
 testsuite/integration/jobs/slurm*.out
+
+# Kind files
+testsuite/integration/kubeconfig
+testsuite/integration/kind-config.yaml

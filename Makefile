@@ -35,3 +35,5 @@ test-mocks:
 test-realk8s:
 	MOCK_SLURM=yes REAL_K8S=yes busted $(TAG) $(OUTPUT_HANDLER) testsuite/unit/src/burst_buffer/dws-test.lua
 
+integration-test: $(find testsuite/integration/src -type f) testsuite/integration/Dockerfile
+	cd testsuite/integration && make setup test clean
