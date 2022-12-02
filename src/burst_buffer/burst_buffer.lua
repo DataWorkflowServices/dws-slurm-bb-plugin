@@ -17,17 +17,6 @@
 --  limitations under the License.
 --
 
-local REAL_SLURM = true
-if os.getenv("MOCK_SLURM") ~= nil then
-	REAL_SLURM = false
-	_G.slurm = {
-		ERROR = -1,
-		SUCCESS = 0,
-		log_info = function(...) print(string.format(...)) end,
-		log_error = function(...) print(string.format(...)) end,
-	}
-end
-
 -- The directive used in job scripts. This is the same value specified in the
 --  burst_buffer.conf "Directive" configuration parameter.
 local DIRECTIVE = "BB_LUA"
@@ -35,6 +24,9 @@ local DIRECTIVE = "BB_LUA"
 -- A placeholder for the WLM ID.  This value is not used by Slurm, but is
 -- used by other WLMs, so the DWS library expects it.
 WLMID_PLACEHOLDER = "slurm"
+
+-- The fully-qualified name of the DWS Workflow CRD.
+local WORKFLOW_CRD = "workflows.dws.cray.hpe.com"
 
 lua_script_name="burst_buffer.lua"
 
@@ -180,41 +172,42 @@ end
 -- On success this returns true.
 -- On failure this returns false and the output of the kubectl command.
 function DWS:apply(fname)
-	return self:io_popen("kubectl apply -f " .. fname .. " 2>&1")
+	return self:kubectl("apply -f " .. fname .. " 2>&1")
 end
 
 -- DWS:delete will delete the named Workflow resource via kubectl.
--- On success this returns true.
+-- On success this returns true and the output of the kubectl command.
 -- On failure this returns false and the output of the kubectl command.
 function DWS:delete()
-	return self:io_popen("kubectl delete workflow " .. self.name .. " 2>&1")
+	return self:kubectl("delete " .. WORKFLOW_CRD .. " " .. self.name .. " 2>&1")
 end
 
 -- DWS:get_jsonpath will get the specified values from the Workflow resource.
 -- On success this returns true and a string containing the result of the query.
 -- On failure this returns false and the output of the kubectl command.
 function DWS:get_jsonpath(path)
-	local cmd = "kubectl get workflow " .. self.name .. " -o jsonpath='" .. path .. "' 2>&1"
-	return self:io_popen(cmd)
+	local cmd = "get " .. WORKFLOW_CRD .. " " .. self.name .. " -o jsonpath='" .. path .. "' 2>&1"
+	return self:kubectl(cmd)
 end
 
 -- DWS:get_current_state will get the status of the Workflow resource with
 -- respect to its desired state.
 -- On success this returns true and a table containing the desiredState,
 -- the current state, and the status of the current state.
--- On failure this returns false and the output of the kubectl command.
+-- On failure this returns false, an empty table, and the output of the
+-- kubectl command.
 function DWS:get_current_state()
+	local status = {}
 	local ret, output = self:get_jsonpath([[desiredState={.spec.desiredState}{"\n"}currentState={.status.state}{"\n"}status={.status.status}{"\n"}]])
 	if ret == false then
-		return ret, output
+		return ret, status, output
 	end
-	local status = {}
 	local idx = 0
 	for line in output:gmatch("[^\n]+") do
-		for k, v in string.gmatch(line, "(%w+)=([%w_]+)") do
+		for k, v in string.gmatch(line, "([a-z]%w+)=([A-Z]%w+)") do
 			status[k] = v
+			idx = idx + 1
 		end
-		idx = idx + 1
 	end
 	if idx == 1 and status["desiredState"] == "Proposal" then
 		-- DWS has not yet attached a status section to this new
@@ -223,7 +216,7 @@ function DWS:get_current_state()
 		status["status"] = ""
 	elseif idx ~= 3 then
 		-- We should have had 3 lines.
-		ret = false
+		return false, status, string.format("found %d items, wanted 3: %s", idx, output)
 	end
 	return ret, status
 end
@@ -245,25 +238,26 @@ end
 
 -- DWS:wait_for_status_complete will loop until the workflow reports that
 -- its status is completed.
--- On success this returns true and the status text.
--- On failure this returns false and an error message.
+-- On success this returns true and a table containing the status.
+-- On failure this returns false, an empty table, and an error message.
 function DWS:wait_for_status_complete(max_passes)
+	local empty = {}
 	while max_passes > 0 do
-		local done, output = self:get_current_state()
+		local done, status, err = self:get_current_state()
 		if done == false then
-			return false, output
+			return false, empty, err
 		end
 		-- Wait for current state to reflect the desired state, and
 		-- for the current state to be complete.
-		if output["desiredState"] == output["currentState"] and output["status"] == "Completed" then
-			return true, output
-		elseif output["status"] == "Error" then
-			return false, output
+		if status["desiredState"] == status["currentState"] and status["status"] == "Completed" then
+			return true, status
+		elseif status["status"] == "Error" then
+			return false, empty, string.format("Error in Workflow %s", self.name)
 		end
 		os.execute("sleep 1")
 		max_passes = max_passes - 1
 	end
-	return false, "exceeded max wait time"
+	return false, empty, "exceeded max wait time"
 end
 
 
@@ -280,13 +274,13 @@ function DWS:set_desired_state(new_state, hurry)
 		table.insert(spec_tbl, [["hurry":true]])
 	end
 	local new_spec = table.concat(spec_tbl, ",")
-	local patch = [[kubectl patch workflow ]] .. self.name .. [[ --type=merge -p '{"spec":{]] .. new_spec .. [[}}' 2>&1]]
-	return self:io_popen(patch)
+	local patch = "patch " .. WORKFLOW_CRD .. " " .. self.name .. [[ --type=merge -p '{"spec":{]] .. new_spec .. [[}}' 2>&1]]
+	return self:kubectl(patch)
 end
 
 -- DWS:set_workflow_state_and_wait updates the Workflow to the desired state
 -- and waits for the state be completed.
--- On success this returns true and the status text.
+-- On success this returns true.
 -- On failure this returns false and an error message.
 function DWS:set_workflow_state_and_wait(new_state, hurry)
 	local done, err = self:set_desired_state(new_state, hurry)
@@ -294,19 +288,34 @@ function DWS:set_workflow_state_and_wait(new_state, hurry)
 		return done, "set_desired_state: " .. err
 	end
 
-	done, err = self:wait_for_status_complete(60)
+	local done, status, err = self:wait_for_status_complete(60)
 	if done == false then
 		return done, "wait_for_status_complete: " .. err
 	end
 
-	return true, err
+	return true
 end
 
--- DWS:io_popen will run the given command and collect its output.
--- On success this returns true.
+-- DWS:token will find a ServiceAccount token and return a --token argument
+-- for the kubectl command.  If we're not inside the slurm pod, maybe in a test
+-- env, then this will return an empty string.
+function DWS:token()
+	local tok = ""
+	local file = io.open("/var/run/secrets/kubernetes.io/serviceaccount/token")
+	if file ~= nil then
+		local content = file:read("*a")
+		file:close()
+		tok = '--token="' .. content .. '"'
+	end
+	return tok
+end
+
+-- DWS:kubectl will run the given kubectl command and collect its output.
+-- On success this returns true and the output of the command.
 -- On failure this returns false and the output of the command.
-function DWS:io_popen(cmd)
-	local handle = io.popen(cmd)
+function DWS:kubectl(cmd)
+	local kcmd = "kubectl " .. self:token() .. " " .. cmd
+	local handle = io.popen(kcmd)
 	if handle == nil then
 		-- The io.popen was stubbed by a test.  Use the provided
 		-- return values.
@@ -525,7 +534,7 @@ function slurm_bb_setup(job_id, uid, gid, pool, bb_size, job_script)
 
 	-- Wait for proposal state to complete, or pick up any error that may
 	-- be waiting in the Workflow.
-	done, err = workflow:wait_for_status_complete(60)
+	local done, status, err = workflow:wait_for_status_complete(60)
 	if done == false then
 		slurm.log_error("%s: slurm_bb_setup(), workflow=%s, waiting for Proposal state to complete: %s", lua_script_name, workflow_name, err)
 		return slurm.ERROR, err
@@ -537,7 +546,7 @@ function slurm_bb_setup(job_id, uid, gid, pool, bb_size, job_script)
 		return done, err
 	end
 
-	done, err = workflow:wait_for_status_complete(60)
+	done, status, err = workflow:wait_for_status_complete(60)
 	if done == err then
 		slurm.log_error("%s: slurm_bb_setup(), workflow=%s, waiting for Setup state to complete: %s", lua_script_name, workflow_name, err)
 		return done, err
@@ -700,15 +709,16 @@ function slurm_bb_get_status(...)
 
 	if args.n == 2 and args[1] == "workflow" then
 		local done = false
+		local status = {}
 		local jid = args[2]
 		if string.find(jid, "^%d+$") == nil then
 			msg = "A job ID must contain only digits."
 		else
 			local workflow = DWS(make_workflow_name(jid))
-			done, msg = workflow:get_current_state()
+			done, status, msg = workflow:get_current_state()
 		end
 		if done == true then
-			msg = "desiredState=" .. msg["desiredState"] .. " currentState=" .. msg["currentState"] .. " status=" .. msg["status"]
+			msg = "desiredState=" .. status["desiredState"] .. " currentState=" .. status["currentState"] .. " status=" .. status["status"]
 			ret = slurm.SUCCESS
 		end
 	end
