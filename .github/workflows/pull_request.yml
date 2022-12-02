@@ -27,7 +27,7 @@
 # behalf of the pull request run.
 #
 # NOTE: This workflow is designed to run on PRs from forked repositories and is
-# not guarenteed to run perfectly in PRs from branches in the same repository.
+# not guaranteed to run perfectly in PRs from branches in the same repository.
 # In particular, test reports from check runs will be written to the wrong
 # workflow summary, since both the "Build" and "Pull Request" workflows will
 # run in the same repository.

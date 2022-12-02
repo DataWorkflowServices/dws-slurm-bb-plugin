@@ -41,7 +41,7 @@ setup-dws:
 		cd ../submodules/dws ; \
 		docker buildx build -t local/dws-operator:test --cache-from="/tmp/.buildx-cache" --load . ; \
 		IMAGE_TAG_BASE=local/dws-operator VERSION=test KIND_CLUSTER=dws make kind-push deploy ; \
-		kubectl wait deployment -n dws-operator-system dws-operator-controller-manager --for condition=Available=True ; \
+		kubectl wait deployment --timeout=60s -n dws-operator-system dws-operator-controller-manager --for condition=Available=True ; \
 	}
 
 .PHONY: setup
@@ -50,7 +50,7 @@ setup: setup-kind setup-dws
 .PHONY: test
 test:
 	docker compose build
-	docker-compose up
+	docker compose up
 
 .PHONY: reports
 reports:
@@ -59,7 +59,7 @@ reports:
 
 .PHONY: clean
 clean:
-	docker-compose down || echo "Integration test container cleanup failed"
+	docker compose down || echo "Integration test container cleanup failed"
 	docker network disconnect slurm_default dws-control-plane || echo "Docker network cleanup failed"
 	cd slurm && docker compose down || echo "Slurm cleanup failed"
 	source kind/kind.sh && teardown || echo "Kind cleanup failed"

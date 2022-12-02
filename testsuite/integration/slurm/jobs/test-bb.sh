@@ -20,7 +20,7 @@
 #
 
 #SBATCH --output=/jobs/slurm-%j.out
-#BB_LUA pool=pool1 capacity=1K
+#BB_LUA
 /bin/hostname
 srun -l /bin/hostname
 srun -l /bin/pwd

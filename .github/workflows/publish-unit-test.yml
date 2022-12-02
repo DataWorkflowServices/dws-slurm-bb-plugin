@@ -111,7 +111,7 @@ jobs:
 
       # This action creates a checkrun that publishes the junit test report in
       # the first workflow run in the commit. This should only be the 
-      # "Pull Request" workflow, but chould end up being the "Build" workflow
+      # "Pull Request" workflow, but could end up being the "Build" workflow
       # if the PR is made from a branch within the same repository
       - name: Publish Unit Test Results
         uses: scacap/action-surefire-report@v1

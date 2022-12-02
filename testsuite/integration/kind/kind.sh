@@ -61,9 +61,9 @@ install_dependencies () {
   # Install the cert-manager for the DWS webhook.
   kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.7.0/cert-manager.yaml
 
-  kubectl wait deployment -n cert-manager cert-manager --for condition=Available=True
-  kubectl wait deployment -n cert-manager cert-manager-cainjector --for condition=Available=True
-  kubectl wait deployment -n cert-manager cert-manager-webhook --for condition=Available=True
+  kubectl wait deployment --timeout=60s -n cert-manager cert-manager --for condition=Available=True
+  kubectl wait deployment --timeout=60s -n cert-manager cert-manager-cainjector --for condition=Available=True
+  kubectl wait deployment --timeout=60s -n cert-manager cert-manager-webhook --for condition=Available=True
 }
 
 prep_kubeconfig () {
