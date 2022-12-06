@@ -1,0 +1,95 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+#
+# Copyright 2022 Hewlett Packard Enterprise Development LP
+# Other additional copyright holders may be indicated within.
+#
+# The entirety of this work is licensed under the Apache License,
+# Version 2.0 (the "License"); you may not use this file except
+# in compliance with the License.
+#
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# See "publish-unit-test.yml" for information about actions in this workflow
+name: Publish Unit Test
+on:
+  workflow_call:
+  workflow_run:
+    workflows: [Pull Request]
+    types:
+      - completed
+
+jobs:
+  publish:
+    name: Publish
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish Event File
+        uses: actions/upload-artifact@v3
+        if: ${{ runner.debug }}
+        with:
+          name: publish-integration-event-file
+          path: ${{ github.event_path }}
+
+      - uses: actions/download-artifact@v3
+        with:
+          name: integration-test-results
+
+      - name: Publish Integration Test Results
+        uses: scacap/action-surefire-report@v1
+        with:
+          report_paths: "**/*.junit.xml"
+          check_name: "Integration Test Report"
+          
+  publish_checkrun:
+    name: Publish Checkrun
+    if: ${{ github.event_name == 'workflow_run' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish Event File
+        uses: actions/upload-artifact@v3
+        if: ${{ runner.debug }}
+        with:
+          name: publish-integration-event-file
+          path: ${{ github.event_path }}
+
+      - name: 'Download artifacts'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
+               owner: context.repo.owner,
+               repo: context.repo.repo,
+               run_id: context.payload.workflow_run.id,
+            });
+            let matchArtifactTestResults = allArtifacts.data.artifacts.filter((artifact) => {
+              return artifact.name == "integration-test-results"
+            })[0];
+            let downloadTestResults = await github.rest.actions.downloadArtifact({
+               owner: context.repo.owner,
+               repo: context.repo.repo,
+               artifact_id: matchArtifactTestResults.id,
+               archive_format: 'zip',
+            });
+            let fs = require('fs');
+            fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/unit-test-results.zip`, Buffer.from(downloadTestResults.data));
+
+      - name: Unzip artifacts
+        run: unzip integration-test-results.zip
+
+      - name: Publish Integration Test Results
+        uses: scacap/action-surefire-report@v1
+        with:
+          report_paths: "**/*.junit.xml"
+          check_name: "Unit Test Report"
+          commit: ${{ github.event.workflow_run.head_sha }}
