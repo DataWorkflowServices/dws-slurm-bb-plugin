@@ -239,12 +239,13 @@ function DWS:get_hurry()
 end
 
 -- DWS:wait_for_status_complete will loop until the workflow reports that
--- its status is completed.
+-- its status is completed.  If the max_passes == -1 then this will loop
+-- without limit until the state is complete or an error is encountered.
 -- On success this returns true and a table containing the status.
 -- On failure this returns false, an empty table, and an error message.
 function DWS:wait_for_status_complete(max_passes)
 	local empty = {}
-	while max_passes > 0 do
+	while max_passes > 0 or max_passes == -1 do
 		local done, status, err = self:get_current_state()
 		if done == false then
 			return false, empty, err
@@ -257,7 +258,9 @@ function DWS:wait_for_status_complete(max_passes)
 			return false, empty, string.format("Error in Workflow %s", self.name)
 		end
 		os.execute("sleep 1")
-		max_passes = max_passes - 1
+		if max_passes > 0 then
+			max_passes = max_passes - 1
+		end
 	end
 	return false, empty, "exceeded max wait time"
 end
@@ -290,7 +293,7 @@ function DWS:set_workflow_state_and_wait(new_state, hurry)
 		return done, "set_desired_state: " .. err
 	end
 
-	local done, status, err = self:wait_for_status_complete(60)
+	local done, status, err = self:wait_for_status_complete(-1)
 	if done == false then
 		return done, "wait_for_status_complete: " .. err
 	end
@@ -579,7 +582,7 @@ function slurm_bb_setup(job_id, uid, gid, pool, bb_size, job_script)
 
 	-- Wait for proposal state to complete, or pick up any error that may
 	-- be waiting in the Workflow.
-	local done, status, err = workflow:wait_for_status_complete(60)
+	local done, status, err = workflow:wait_for_status_complete(-1)
 	if done == false then
 		slurm.log_error("%s: slurm_bb_setup(), workflow=%s, waiting for Proposal state to complete: %s", lua_script_name, workflow_name, err)
 		return slurm.ERROR, err
@@ -591,7 +594,7 @@ function slurm_bb_setup(job_id, uid, gid, pool, bb_size, job_script)
 		return done, err
 	end
 
-	done, status, err = workflow:wait_for_status_complete(60)
+	done, status, err = workflow:wait_for_status_complete(-1)
 	if done == err then
 		slurm.log_error("%s: slurm_bb_setup(), workflow=%s, waiting for Setup state to complete: %s", lua_script_name, workflow_name, err)
 		return done, err
