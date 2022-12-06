@@ -28,6 +28,8 @@ WLMID_PLACEHOLDER = "slurm"
 -- The fully-qualified name of the DWS Workflow CRD.
 local WORKFLOW_CRD = "workflows.dws.cray.hpe.com"
 
+KUBECTL_CACHE_DIR = "/tmp/burst_buffer_kubectl_cache"
+
 lua_script_name="burst_buffer.lua"
 
 math.randomseed(os.time())
@@ -237,12 +239,13 @@ function DWS:get_hurry()
 end
 
 -- DWS:wait_for_status_complete will loop until the workflow reports that
--- its status is completed.
+-- its status is completed.  If the max_passes == -1 then this will loop
+-- without limit until the state is complete or an error is encountered.
 -- On success this returns true and a table containing the status.
 -- On failure this returns false, an empty table, and an error message.
 function DWS:wait_for_status_complete(max_passes)
 	local empty = {}
-	while max_passes > 0 do
+	while max_passes > 0 or max_passes == -1 do
 		local done, status, err = self:get_current_state()
 		if done == false then
 			return false, empty, err
@@ -255,7 +258,9 @@ function DWS:wait_for_status_complete(max_passes)
 			return false, empty, string.format("Error in Workflow %s", self.name)
 		end
 		os.execute("sleep 1")
-		max_passes = max_passes - 1
+		if max_passes > 0 then
+			max_passes = max_passes - 1
+		end
 	end
 	return false, empty, "exceeded max wait time"
 end
@@ -288,12 +293,44 @@ function DWS:set_workflow_state_and_wait(new_state, hurry)
 		return done, "set_desired_state: " .. err
 	end
 
-	local done, status, err = self:wait_for_status_complete(60)
+	local done, status, err = self:wait_for_status_complete(-1)
 	if done == false then
 		return done, "wait_for_status_complete: " .. err
 	end
 
 	return true
+end
+
+-- DWS:kubectl_cache_home will determine where the kubectl discovery cache
+-- and http cache may be located.
+-- If the user's HOME dir exists then kubectl expects to use that and this does
+-- nothing and returns true and an empty string.
+-- Otherwise, this will create a dir in /tmp and will return true and a string
+-- that defines the HOME variable with the new dir.
+-- If there is an error creating the dir this will return false and a string
+-- containing an error message.
+function DWS:kubectl_cache_home()
+
+	local dir_exists = function(dname)
+		local cmd = "test -d " .. dname
+		local done, _ = self:io_popen(cmd)
+		if done == false then
+		end
+		return done
+	end
+
+	if dir_exists(os.getenv("HOME")) == false then
+		if dir_exists(KUBECTL_CACHE_DIR) == false then
+			local cmd = "mkdir " .. KUBECTL_CACHE_DIR
+			local done, result = self:io_popen(cmd)
+			if done == false then
+				return false, "Unable to create " .. KUBECTL_CACHE_DIR .. " cache dir for kubectl: " .. result
+			end
+		end
+		return true, "HOME=" .. KUBECTL_CACHE_DIR
+	end
+
+	return true, ""
 end
 
 -- DWS:token will find a ServiceAccount token and return a --token argument
@@ -314,8 +351,19 @@ end
 -- On success this returns true and the output of the command.
 -- On failure this returns false and the output of the command.
 function DWS:kubectl(cmd)
-	local kcmd = "kubectl " .. self:token() .. " " .. cmd
-	local handle = io.popen(kcmd)
+	local done, homedir_msg = self:kubectl_cache_home()
+	if done ~= true then
+		return false, homedir_msg
+	end
+	local kcmd = homedir_msg .. " kubectl " .. self:token() .. " " .. cmd
+	return self:io_popen(kcmd)
+end
+
+-- DWS:io_popen will run the given command and collect its output.
+-- On success this returns true and the output of the command.
+-- On failure this returns false and the output of the command.
+function DWS:io_popen(cmd)
+	local handle = io.popen(cmd)
 	if handle == nil then
 		-- The io.popen was stubbed by a test.  Use the provided
 		-- return values.
@@ -534,7 +582,7 @@ function slurm_bb_setup(job_id, uid, gid, pool, bb_size, job_script)
 
 	-- Wait for proposal state to complete, or pick up any error that may
 	-- be waiting in the Workflow.
-	local done, status, err = workflow:wait_for_status_complete(60)
+	local done, status, err = workflow:wait_for_status_complete(-1)
 	if done == false then
 		slurm.log_error("%s: slurm_bb_setup(), workflow=%s, waiting for Proposal state to complete: %s", lua_script_name, workflow_name, err)
 		return slurm.ERROR, err
@@ -546,7 +594,7 @@ function slurm_bb_setup(job_id, uid, gid, pool, bb_size, job_script)
 		return done, err
 	end
 
-	done, status, err = workflow:wait_for_status_complete(60)
+	done, status, err = workflow:wait_for_status_complete(-1)
 	if done == err then
 		slurm.log_error("%s: slurm_bb_setup(), workflow=%s, waiting for Setup state to complete: %s", lua_script_name, workflow_name, err)
 		return done, err
