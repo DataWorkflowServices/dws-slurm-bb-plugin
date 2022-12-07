@@ -589,15 +589,15 @@ function slurm_bb_setup(job_id, uid, gid, pool, bb_size, job_script)
 	end
 
 	local done, err = workflow:set_desired_state("Setup")
-	if done == err then
+	if done == false then
 		slurm.log_error("%s: slurm_bb_setup(), workflow=%s, setting state to Setup: %s", lua_script_name, workflow_name, err)
-		return done, err
+		return slurm.ERROR, err
 	end
 
 	done, status, err = workflow:wait_for_status_complete(-1)
-	if done == err then
+	if done == false then
 		slurm.log_error("%s: slurm_bb_setup(), workflow=%s, waiting for Setup state to complete: %s", lua_script_name, workflow_name, err)
-		return done, err
+		return slurm.ERROR, err
 	end
 
 	return slurm.SUCCESS
