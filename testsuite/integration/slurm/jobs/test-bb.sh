@@ -20,7 +20,7 @@
 #
 
 #SBATCH --output=/jobs/slurm-%j.out
-#BB_LUA
+#DW
 /bin/hostname
 srun -l /bin/hostname
 srun -l /bin/pwd

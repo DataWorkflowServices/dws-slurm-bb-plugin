@@ -198,8 +198,8 @@ describe("The dws library initializer", function()
 
 	it("can handle a non-empty array value for dwd", function()
 		local dwd = {}
-		dwd[1] = "#BB_LUA line 1"
-		dwd[2] = "#BB_LUA line 2"
+		dwd[1] = "#DW line 1"
+		dwd[2] = "#DW line 2"
 		fill_template(workflow, wlmID, jobID, userID, groupID, dwd)
 		assert.is_not_nil(string.find(workflow.yaml, "dwDirectives:\n  %- " .. dwd[1] .. "\n" .. "  %- " .. dwd[2] .. "\n"))
 	end)
@@ -666,8 +666,8 @@ describe("Burst buffer helpers", function()
 
 		it("finds directives in job script", function()
 			local in_dwd = {}
-			in_dwd[1] = "#BB_LUA pool=pool1 capacity=1K"
-			in_dwd[2] = "#BB_LUA pool=pool2 capacity=1K"
+			in_dwd[1] = "#DW pool=pool1 capacity=1K"
+			in_dwd[2] = "#DW pool=pool2 capacity=1K"
 			local job_script = "#!/bin/bash\n" .. in_dwd[1] .. "\n" .. in_dwd[2] .. "\nsrun application.sh\n"
 
 			write_job_script(job_script_name, job_script)
@@ -771,14 +771,14 @@ describe("Burst buffer helpers", function()
 
 		it("can create workflow from job script with directives", function()
 			local in_dwd = {}
-			in_dwd[1] = "#BB_LUA pool=pool1 capacity=1K"
-			in_dwd[2] = "#BB_LUA pool=pool2 capacity=1K"
+			in_dwd[1] = "#DW pool=pool1 capacity=1K"
+			in_dwd[2] = "#DW pool=pool2 capacity=1K"
 			local job_script = "#!/bin/bash\n" .. in_dwd[1] .. "\n" .. in_dwd[2] .. "\nsrun application.sh\n"
 
 			write_job_script(job_script_name, job_script)
 
 			-- The DWS environment does not have a ruleset for
-			-- the BB_LUA directives, so we should expect an error.
+			-- the #DW directives, so we should expect an error.
 			-- We'll look for only a small piece of the error
 			-- message here.
 			local result_wanted = "unable to find ruleset"
@@ -907,13 +907,13 @@ describe("Slurm API", function()
 
 	it("slurm_bb_job_process can validate workflow from job script with directives", function()
 		local in_dwd = {}
-		in_dwd[1] = "#BB_LUA pool=pool1 capacity=1K"
-		in_dwd[2] = "#BB_LUA pool=pool2 capacity=1K"
+		in_dwd[1] = "#DW pool=pool1 capacity=1K"
+		in_dwd[2] = "#DW pool=pool2 capacity=1K"
 		local job_script = "#!/bin/bash\n" .. in_dwd[1] .. "\n" .. in_dwd[2] .. "\nsrun application.sh\n"
 		write_job_script(job_script_name, job_script)
 
 		-- The DWS environment does not have a ruleset for
-		-- the BB_LUA directives, so we should expect an error.
+		-- the #DW directives, so we should expect an error.
 		-- We'll look for only a small piece of the error
 		-- message here.
 		local result_wanted = "unable to find ruleset"

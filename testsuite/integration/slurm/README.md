@@ -1,9 +1,6 @@
 # Slurm Docker Cluster
 
-This is a multi-container Slurm v22 cluster using docker-compose.  The compose file
-creates named volumes for persistent storage of MySQL data files as well as
-Slurm state and log directories. The burst_buffer.lua script is mounted in the
-slurmctld container and is available to be tested using `#BB_LUA` directives.
+This is a multi-container Slurm v22 cluster using docker-compose.  The compose file creates named volumes for persistent storage of MySQL data files as well as Slurm state and log directories. The burst_buffer.lua script and burst_buffer.conf are mounted in the slurmctld container and the burst_buffer script is available to be tested using `#DW` directives.
 
 ## Containers and Volumes
 

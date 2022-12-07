@@ -19,7 +19,7 @@
 
 -- The directive used in job scripts. This is the same value specified in the
 --  burst_buffer.conf "Directive" configuration parameter.
-local DIRECTIVE = "BB_LUA"
+local DIRECTIVE = "DW"
 
 -- A placeholder for the WLM ID.  This value is not used by Slurm, but is
 -- used by other WLMs, so the DWS library expects it.
