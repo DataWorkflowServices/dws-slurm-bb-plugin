@@ -17,6 +17,8 @@
 --  limitations under the License.
 --
 
+lua_script_name="burst_buffer.lua"
+
 -- The directive used in job scripts. This is the same value specified in the
 --  burst_buffer.conf "Directive" configuration parameter.
 local DIRECTIVE = "DW"
@@ -25,12 +27,17 @@ local DIRECTIVE = "DW"
 -- used by other WLMs, so the DWS library expects it.
 WLMID_PLACEHOLDER = "slurm"
 
+-- Indentation for labels within the YAML of a Workflow.
+LABEL_INDENT = "    "
+
+-- The default label that is applied to all Workflows.
+DEFAULT_LABEL_KEY = "origin"
+DEFAULT_LABEL_VAL = lua_script_name
+
 -- The fully-qualified name of the DWS Workflow CRD.
 local WORKFLOW_CRD = "workflows.dws.cray.hpe.com"
 
 KUBECTL_CACHE_DIR = "/tmp/burst_buffer_kubectl_cache"
-
-lua_script_name="burst_buffer.lua"
 
 math.randomseed(os.time())
 
@@ -115,6 +122,8 @@ apiVersion: dws.cray.hpe.com/v1alpha1
 kind: Workflow
 metadata:
   name: WF_NAME
+  labels:
+THE_LABELS
 spec:
   desiredState: "Proposal"
   DWDIRECTIVES
@@ -127,13 +136,21 @@ end
 
 -- DWS:initialize will replace keywords in a workflow template to turn
 -- it into a completed workflow resource.
-function DWS:initialize(wlmID, jobID, userID, groupID, dw_directives)
+function DWS:initialize(wlmID, jobID, userID, groupID, dw_directives, labels)
 	yaml = self.yaml
 	yaml = string.gsub(yaml, "WF_NAME", self.name)
 	yaml = string.gsub(yaml, "WLMID", wlmID)
 	yaml = string.gsub(yaml, "JOBID", jobID)
 	yaml = string.gsub(yaml, "USERID", userID)
 	yaml = string.gsub(yaml, "GROUPID", groupID)
+
+	local new_labels = LABEL_INDENT .. DEFAULT_LABEL_KEY .. ": " .. DEFAULT_LABEL_VAL .. "\n"
+	if labels ~= nil then
+		for k, v in pairs(labels) do
+			new_labels = new_labels .. LABEL_INDENT .. k .. ": " .. v .. "\n"
+		end
+	end
+	yaml = string.gsub(yaml, "THE_LABELS", new_labels)
 
 	local dwd_count = 0
 	if dw_directives ~= nil then
@@ -403,9 +420,9 @@ end
 -- make_workflow populates a workflow resource and submits it to DWS.
 -- On success this returns true and a nil error message.
 -- On failure this returns false and an error message.
-function make_workflow(workflow, job_script, jobid, userid, groupid)
+function make_workflow(workflow, job_script, jobid, userid, groupid, labels)
 	local dwd = find_dw_directives(job_script)
-	workflow:initialize(WLMID_PLACEHOLDER, jobid, userid, groupid, dwd)
+	workflow:initialize(WLMID_PLACEHOLDER, jobid, userid, groupid, dwd, labels)
 
 	local msg
 	local yaml_name = os.tmpname()
@@ -479,7 +496,8 @@ function slurm_bb_job_process(job_script)
 
 	local workflow_name = "temp-" .. math.random(10000)
 	local workflow = DWS(workflow_name)
-	local done, err = make_workflow(workflow, job_script, 1, 1, 1)
+	local labels = {["note"] = "temporary"}
+	local done, err = make_workflow(workflow, job_script, 1, 1, 1, labels)
 	if done == false then
 		slurm.log_error("%s: slurm_bb_job_process(), workflow=%s, make_workflow: %s", lua_script_name, workflow_name, err)
 		return slurm.ERROR, err

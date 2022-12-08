@@ -27,7 +27,7 @@ if os.getenv("REAL_K8S") ~= nil then
 	-- Expect to be running against a live K8s environment, with kubectl
 	-- and DWS operator.
 	print("Running live")
-	IS_REAL_K8s = true
+	IS_REAL_K8S = true
 	IS_NOT_K8S = false
 end
 
@@ -56,6 +56,9 @@ if VALIDATOR == nil and IS_NOT_K8S then
 	VALIDATOR = "/bin/validate"
 end
 
+-- The default Workflow label, in a form that is easy to use with kubectl-get.
+local DEFAULT_LABEL_KV = DEFAULT_LABEL_KEY .. "=" .. DEFAULT_LABEL_VAL
+
 -- get_workflow_obj will instantiate a DWS object with the given name.
 local function get_workflow_obj(workflow_name)
 	local workflow = DWS(workflow_name)
@@ -73,14 +76,14 @@ local function verify_filled_template(workflow, wlmID, jobID, userID, groupID)
 	assert.is_not_nil(string.find(wf_yaml, "jobID: " .. jobID))
 	assert.is_not_nil(string.find(wf_yaml, "userID: " .. userID))
 	assert.is_not_nil(string.find(wf_yaml, "groupID: " .. groupID))
+	assert.is_not_nil(string.find(wf_yaml, "\n" .. LABEL_INDENT .. DEFAULT_LABEL_KEY .. ": " .. DEFAULT_LABEL_VAL .. "\n"))
 end
 
--- fill_template fills the DWS template with a 'dwd' parameter.
-local function fill_template(workflow, wlmID, jobID, userID, groupID, dwd)
-	workflow:initialize(wlmID, jobID, userID, groupID, dwd)
+-- fill_template fills the DWS template with a 'dwd' parameter and 'label' parameter.
+local function fill_template(workflow, wlmID, jobID, userID, groupID, dwd, labels)
+	workflow:initialize(wlmID, jobID, userID, groupID, dwd, labels)
 	verify_filled_template(workflow, wlmID, jobID, userID, groupID)
-	local wf_yaml = workflow.yaml
-	-- Our caller will verify the dwDirectives value.
+	-- Our caller will verify the dwDirectives and labels values.
 end
 
 -- write_job_script will write the text of a job's script to a specified file.
@@ -88,6 +91,20 @@ local function write_job_script(job_script_name, job_text)
 	local file = io.open(job_script_name, "w")
 	file:write(job_text)
 	file:close()
+end
+
+-- query_label will query the workflows to find one with the given label.
+local query_label = function(workflow, label_kv)
+	local result_wanted = workflow.name .. "\n"
+	dwsmq_enqueue(true, "") -- kubectl_cache_home
+	dwsmq_enqueue(true, result_wanted)
+	local done, err = workflow:kubectl("get workflows --no-headers -o custom-columns=MAME:.metadata.name -l " .. label_kv)
+	if IS_NOT_K8S then
+		assert.stub(io.popen).was_called(2)
+		io.popen:clear()
+	end
+	assert.is_true(done, err)
+	assert.is_equal(err, result_wanted)
 end
 
 describe("The dws library kubectl cache", function()
@@ -190,18 +207,27 @@ describe("The dws library initializer", function()
 		assert.is_not_nil(string.find(workflow.yaml, "dwDirectives: %[%]"))
 	end)
 
-	it("can handle an empty array value for dwd", function()
+	it("can handle an empty array value for dwd and labels", function()
 		local dwd = {}
-		fill_template(workflow, wlmID, jobID, userID, groupID, dwd)
+		local labels = {}
+		fill_template(workflow, wlmID, jobID, userID, groupID, dwd, labels)
 		assert.is_not_nil(string.find(workflow.yaml, "dwDirectives: %[%]"))
 	end)
 
-	it("can handle a non-empty array value for dwd", function()
+	it("can handle a non-empty array value for dwd and labels", function()
 		local dwd = {}
 		dwd[1] = "#DW line 1"
 		dwd[2] = "#DW line 2"
-		fill_template(workflow, wlmID, jobID, userID, groupID, dwd)
-		assert.is_not_nil(string.find(workflow.yaml, "dwDirectives:\n  %- " .. dwd[1] .. "\n" .. "  %- " .. dwd[2] .. "\n"))
+		local labels = {["tree"] = "ginkgo", ["flower"] = "petunia"}
+		fill_template(workflow, wlmID, jobID, userID, groupID, dwd, labels)
+
+		local wf_yaml = workflow.yaml
+		assert.is_not_nil(string.find(wf_yaml, "dwDirectives:\n  %- " .. dwd[1] .. "\n" .. "  %- " .. dwd[2] .. "\n"))
+
+		for k, v in pairs(labels) do
+			print("Label: ", k, v)
+			assert.is_not_nil(string.find(wf_yaml, "\n" .. LABEL_INDENT .. k .. ": " .. v .. "\n"))
+		end
 	end)
 end)
 
@@ -216,10 +242,52 @@ describe("The dws library", function()
 	local workflow
 	local status_check_count -- simulated delay in dws operator
 	local dwd
+	local labels
+	local my_label_key = "mind"
+	local my_label_val = "matters"
+	local my_label_kv = my_label_key .. "=" .. my_label_val
+	local resource_exists
 
 	local make_workflow_yaml = function()
 		workflow = get_workflow_obj(workflow_name)
-		fill_template(workflow, wlmID, jobID, userID, groupID, dwd)
+		fill_template(workflow, wlmID, jobID, userID, groupID, dwd, labels)
+	end
+
+	local make_and_save_workflow_yaml = function()
+		make_workflow_yaml()
+		local done, err = workflow:save(yaml_name)
+		assert.is_true(done, err)
+	end
+
+	local apply_workflow = function()
+		local result_wanted = "workflow.dws.cray.hpe.com/" .. workflow_name .. " created\n"
+
+		dwsmq_enqueue(true, "") -- kubectl_cache_home
+		dwsmq_enqueue(true, result_wanted)
+		local done, err = workflow:apply(yaml_name)
+		resource_exists = done
+		assert.is_true(done, err)
+		if IS_NOT_K8S then
+			assert.stub(io.popen).was_called(2)
+			io.popen:clear()
+		end
+		assert.is_equal(err, result_wanted)
+	end
+
+	local delete_workflow = function()
+		-- Delete the resource.
+		local result_wanted = 'workflow.dws.cray.hpe.com "' .. workflow_name .. '" deleted\n'
+
+		dwsmq_enqueue(true, "") -- kubectl_cache_home
+		dwsmq_enqueue(true, result_wanted)
+		local done, err = workflow:delete()
+		resource_exists = done
+		if IS_NOT_K8S then
+			assert.stub(io.popen).was_called(2)
+			io.popen:clear()
+		end
+		assert.is_true(done, err)
+		assert.is_equal(err, result_wanted)
 	end
 
 	before_each(function()
@@ -231,6 +299,8 @@ describe("The dws library", function()
 		userID = math.random(1000)
 		groupID = math.random(1000)
 		dwd = {}
+		labels = {}
+		resource_exists = false
 
 		yaml_name = os.tmpname()
 		yaml_name_exists = true
@@ -247,15 +317,7 @@ describe("The dws library", function()
 
 	context("simple create/delete cases", function()
 
-		local resource_exists
-
 		before_each(function()
-			resource_exists = false
-
-			make_workflow_yaml()
-			local done, err = workflow:save(yaml_name)
-			assert.is_true(done, err)
-
 			if IS_NOT_K8S then
 				stub(io, "popen")
 			end
@@ -278,33 +340,19 @@ describe("The dws library", function()
 		end)
 
 		it("can apply and delete a workflow resource", function()
-			local result_wanted = "workflow.dws.cray.hpe.com/" .. workflow_name .. " created\n"
+			make_and_save_workflow_yaml()
+			apply_workflow()
+			query_label(workflow, DEFAULT_LABEL_KV)
+			delete_workflow()
+		end)
 
-			dwsmq_enqueue(true, "") -- kubectl_cache_home
-			dwsmq_enqueue(true, result_wanted)
-			local done, err = workflow:apply(yaml_name)
-			resource_exists = done
-			assert.is_true(done, err)
-			if IS_NOT_K8S then
-				assert.stub(io.popen).was_called(2)
-				io.popen:clear()
-			end
-			assert.is_equal(err, result_wanted)
-
-			result_wanted = 'workflow.dws.cray.hpe.com "' .. workflow_name .. '" deleted\n'
-
-			dwsmq_enqueue(true, "") -- kubectl_cache_home
-			dwsmq_enqueue(true, result_wanted)
-			if IS_NOT_K8S then
-				io.popen:clear()
-			end
-			done, err = workflow:delete()
-			resource_exists = done
-			if IS_NOT_K8S then
-				assert.stub(io.popen).was_called(2)
-			end
-			assert.is_true(done, err)
-			assert.is_equal(err, result_wanted)
+		it("can apply and delete a workflow resource using custom label", function()
+			labels = {[my_label_key] = my_label_val}
+			make_and_save_workflow_yaml()
+			apply_workflow()
+			query_label(workflow, DEFAULT_LABEL_KV)
+			query_label(workflow, my_label_kv)
+			delete_workflow()
 		end)
 	end)
 
@@ -312,9 +360,6 @@ describe("The dws library", function()
 
 		-- If true then the resource is expected to exist. (Creation is expected to succeed.)
 		local expect_exists 
-
-		-- If true then the resource does exist. (Creation was successful.)
-		local resource_exists
 
 		-- If true then expect errors that indicate a state was skipped.
 		local skip_state
@@ -325,15 +370,11 @@ describe("The dws library", function()
 		-- Save the YAML for the resource.  Initialize some bools.
 		-- Setup a stub for io.popen if not running live.
 		before_each(function()
-			resource_exists = false
 			expect_exists = true
 			skip_state = false
 			invalid_state = false
 
-			make_workflow_yaml()
-			local done, err = workflow:save(yaml_name)
-			assert.is_true(done, err)
-
+			make_and_save_workflow_yaml()
 			if IS_NOT_K8S then
 				stub(io, "popen")
 			end
@@ -341,37 +382,17 @@ describe("The dws library", function()
 
 		-- Create the resource.
 		before_each(function()
-			local result_wanted = "workflow.dws.cray.hpe.com/" .. workflow_name .. " created\n"
-
-			dwsmq_enqueue(true, "") -- kubectl_cache_home
-			dwsmq_enqueue(true, result_wanted)
-			local done, err = workflow:apply(yaml_name)
-			resource_exists = done
-			if IS_NOT_K8S then
-				assert.stub(io.popen).was_called(2)
-				io.popen:clear()
-			end
-			assert.is_true(done, err)
+			apply_workflow()
 		end)
 
 		-- Delete the resource.
 		after_each(function()
 			if resource_exists and expect_exists then
-				local result_wanted = 'workflow.dws.cray.hpe.com "' .. workflow_name .. '" deleted\n'
-
 				dwsmq_reset()
-				dwsmq_enqueue(true, "") -- kubectl_cache_home
-				dwsmq_enqueue(true, result_wanted)
 				if IS_NOT_K8S then
 					io.popen:clear()
 				end
-				local done, err = workflow:delete()
-				resource_exists = done
-				if IS_NOT_K8S then
-					assert.stub(io.popen).was_called(2)
-				end
-				assert.is_true(done, err)
-				assert.is_equal(err, result_wanted)
+				delete_workflow()
 			elseif resource_exists and IS_REAL_K8S then
 				-- We didn't expect to create a resource, but
 				-- we got one. So we're already in an error
@@ -527,10 +548,6 @@ describe("The dws library", function()
 
 		context("negative cases for state order", function()
 
-			before_each(function()
-				expect_exists = false
-			end)
-
 			it("can detect an invalid state transition error", function()
 				wait_for_state("Proposal")
 
@@ -565,15 +582,11 @@ describe("The dws library", function()
 
 	context("negative yaml cases", function()
 
-		local resource_exists
-
 		-- The error from k8s has a lot of content, so let's
 		-- just look for the beginning of it.
 		local result_wanted = "Error from server"
 
 		before_each(function()
-			resource_exists = false
-
 			if IS_NOT_K8S then
 				stub(io, "popen")
 			end
@@ -610,23 +623,17 @@ describe("The dws library", function()
 		it("cannot apply an invalid jobID", function()
 
 			jobID = "bad job"
-			make_workflow_yaml()
-			local done, err = workflow:save(yaml_name)
-			assert.is_true(done, err)
+			make_and_save_workflow_yaml()
 		end)
 
 		it("cannot apply an invalid userID", function()
 			userID = "bad user"
-			make_workflow_yaml()
-			local done, err = workflow:save(yaml_name)
-			assert.is_true(done, err)
+			make_and_save_workflow_yaml()
 		end)
 
 		it("cannot apply an invalid groupID", function()
 			groupID = "bad group"
-			make_workflow_yaml()
-			local done, err = workflow:save(yaml_name)
-			assert.is_true(done, err)
+			make_and_save_workflow_yaml()
 		end)
 	end)
 end)
@@ -745,21 +752,23 @@ describe("Burst buffer helpers", function()
 			end
 		end)
 
-		it("can create workflow from job script lacking directives", function()
-			local job_script = "#!/bin/bash\nsrun application.sh\n"
-
-			write_job_script(job_script_name, job_script)
-
+		local create_workflow = function(labels)
 			local result_wanted = "workflow.dws.cray.hpe.com/" .. workflow_name .. " created\n"
 
 			dwsmq_enqueue(true, "") -- kubectl_cache_home
 			dwsmq_enqueue(true, result_wanted)
 
-			local done, err = make_workflow(workflow, job_script_name, jobID, userID, groupID)
+			local done, err
+			if labels ~= nil then
+				done, err = make_workflow(workflow, job_script_name, jobID, userID, groupID, labels)
+			else
+				done, err = make_workflow(workflow, job_script_name, jobID, userID, groupID)
+			end
 			resource_exists = done
 			expect_exists = true
 			if IS_NOT_K8S then
 				assert.stub(io.popen).was_called(2)
+				io.popen:clear()
 			end
 			if err ~= nil then
 				print(err)
@@ -767,6 +776,22 @@ describe("Burst buffer helpers", function()
 			assert.is_true(done, err)
 			verify_filled_template(workflow, WLMID_PLACEHOLDER, jobID, userID, groupID)
 			assert.is_not_nil(string.find(workflow.yaml, "dwDirectives: %[%]"))
+			query_label(workflow, DEFAULT_LABEL_KV)
+		end
+
+		it("can create workflow from job script lacking directives", function()
+			local job_script = "#!/bin/bash\nsrun application.sh\n"
+			write_job_script(job_script_name, job_script)
+			create_workflow()
+		end)
+
+		it("can create workflow with custom labels", function()
+			local job_script = "#!/bin/bash\nsrun application.sh\n"
+			write_job_script(job_script_name, job_script)
+
+			local labels = {["note"] = "temporary"}
+			create_workflow(labels)
+			query_label(workflow, "note=temporary")
 		end)
 
 		it("can create workflow from job script with directives", function()
