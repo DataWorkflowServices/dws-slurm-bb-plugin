@@ -65,6 +65,9 @@ services:
       - type: bind
         source: ../../../src/burst_buffer/burst_buffer.lua
         target: /etc/slurm/burst_buffer.lua
+      - type: bind
+        source: ../../../src/burst_buffer/burst_buffer.conf
+        target: /etc/slurm/burst_buffer.conf
       - ../kubeconfig:/home/slurm/.kube/config
     expose:
       - "6817"
