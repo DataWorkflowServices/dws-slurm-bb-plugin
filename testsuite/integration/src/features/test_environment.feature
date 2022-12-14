@@ -24,19 +24,18 @@ Feature: Integration test environment
         When kubernetes cluster nodes are queried
         Then one or more kubernetes nodes are available
 
-    # Scenario: Using DataWorkflowServices
-    #     When the DataWorkflowServices deployment is queried
-    #     Then the DataWorkflowServices deployment is found
+    Scenario: The DataWorkflowServices deployment exists
+        When the DataWorkflowServices deployment is queried
+        Then the DataWorkflowServices deployment is found
 
-    # Scenario: Using Slurm
-    #     Given a simple job script
-    #         """
-    #         /bin/hostname
-    #         srun -l /bin/hostname
-    #         srun -l /bin/pwd
-    #         """
-    #     When the job is run
-    #     Then the job completes successfully
+    Scenario: Slurm is usable
+        Given a job script:
+            #!/bin/bash
+            /bin/hostname
+            srun -l /bin/hostname
+            srun -l /bin/pwd
+        When the job is run
+        Then the job completes successfully
 
     Scenario: Kubernetes and slurm are connected
         Given the kubernetes cluster kube-system UID

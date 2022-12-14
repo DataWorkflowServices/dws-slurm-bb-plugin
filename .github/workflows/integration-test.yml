@@ -78,6 +78,17 @@ jobs:
           cache-from: type=gha,scope=dws-${{ env.BRANCH }}
           cache-to: type=gha,mode=max,scope=dws-${{ env.BRANCH }}
 
+      # Pre-build dws-test-driver image with docker cache. Expect 2 minutes for a full build
+      - name: Build dws-test-driver
+        uses: docker/build-push-action@v3
+        with:
+          context: testsuite/submodules/dws-test-driver
+          push: false
+          load: true
+          tags: local/dws-test-driver-operator:test
+          cache-from: type=gha,scope=dws-test-driver-${{ env.BRANCH }}
+          cache-to: type=gha,mode=max,scope=dws-test-driver-${{ env.BRANCH }}
+
       - name: Integration Test
         run: cd testsuite/integration && make setup test reports
 

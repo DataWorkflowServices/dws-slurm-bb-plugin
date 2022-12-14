@@ -163,7 +163,7 @@ function DWS:initialize(wlmID, jobID, userID, groupID, dw_directives, labels)
 	else
 		dwd_block = "dwDirectives:\n"
 		for k, v in ipairs(dw_directives) do
-			dwd_block = dwd_block .. "  - " .. dw_directives[k] .. "\n"
+			dwd_block = dwd_block .. "  - \"" .. dw_directives[k] .. "\"\n"
 		end
 		yaml = string.gsub(yaml, "DWDIRECTIVES", dwd_block)
 	end
@@ -181,6 +181,7 @@ function DWS:save(fname)
 		local msg = "unable to open " .. fname
 		return false, msg
 	end
+	slurm.log_info(self.yaml)
 	f:write(self.yaml)
 	local rc = {f:close()}
 	-- Success or failure is a boolean in rc[1].

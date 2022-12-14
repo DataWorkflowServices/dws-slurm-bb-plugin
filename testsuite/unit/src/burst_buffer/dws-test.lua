@@ -222,7 +222,7 @@ describe("The dws library initializer", function()
 		fill_template(workflow, wlmID, jobID, userID, groupID, dwd, labels)
 
 		local wf_yaml = workflow.yaml
-		assert.is_not_nil(string.find(wf_yaml, "dwDirectives:\n  %- " .. dwd[1] .. "\n" .. "  %- " .. dwd[2] .. "\n"))
+		assert.is_not_nil(string.find(wf_yaml, [[dwDirectives:%s%s%s%-%s"]] .. dwd[1] .. [["%s%s%s%-%s"]] .. dwd[2] .. [["]]))
 
 		for k, v in pairs(labels) do
 			print("Label: ", k, v)
@@ -824,7 +824,7 @@ describe("Burst buffer helpers", function()
 			-- ruleset, we should still have a valid-looking
 			-- Workflow YAML.
 			verify_filled_template(workflow, WLMID_PLACEHOLDER, jobID, userID, groupID)
-			assert.is_not_nil(string.find(workflow.yaml, "dwDirectives:\n  %- " .. in_dwd[1] .. "\n" .. "  %- " .. in_dwd[2] .. "\n"))
+			assert.is_not_nil(string.find(workflow.yaml, [[dwDirectives:%s%s%s%-%s"]] .. in_dwd[1] .. [["%s%s%s%-%s"]] .. in_dwd[2] .. [["]]))
 		end)
 	end)
 end)

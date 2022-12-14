@@ -1,3 +1,5 @@
+#!/bin/sh
+
 #
 # Copyright 2022 Hewlett Packard Enterprise Development LP
 # Other additional copyright holders may be indicated within.
@@ -17,27 +19,9 @@
 # limitations under the License.
 #
 
-version: "2.2"
-
-services:
-  integration-test:
-    image: local/integration-test:${TAG:-test}
-    build:
-      context: .
-      cache_from:
-        - "/tmp/.buildx-cache"
-    container_name: integration-test
-    privileged: true
-    hostname: integration-test
-    volumes:
-      - type: bind
-        source: ./slurm/jobs
-        target: /jobs
-      - ./kubeconfig:/root/.kube/config
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./src/:/tests
-
-networks:
-  default:
-    name: slurm_default
-    external: true
+#SBATCH --output=/jobs/slurm-%j.out
+#DW Proposal action=complete
+#DW DataIn action=wait
+/bin/hostname
+srun -l /bin/hostname
+srun -l /bin/pwd
