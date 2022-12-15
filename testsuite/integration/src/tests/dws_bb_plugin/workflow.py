@@ -22,7 +22,7 @@ from tenacity import *
 
 class WorkflowWaitError(Exception):
     def __init__(self, workflowName, description, desiredValue):
-        super.__init(description + " never reached " + desiredValue + " for workflow[" + workflowName + "]")
+        super().__init__(description + " never reached " + desiredValue + " for workflow[" + workflowName + "]")
 
 class Workflow:
     def __init__(self, k8s, jobId):

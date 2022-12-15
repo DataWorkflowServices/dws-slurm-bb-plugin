@@ -19,6 +19,7 @@
 
 import docker
 import os
+import warnings
 from tenacity import *
 
 # Submitting jobs can fail, occasionally, wen the DWS webhook rejects the
@@ -51,41 +52,53 @@ class Slurmctld:
         print("submit job")
         # The --wait option could be used here. However, other tests need to
         # asynchronously track the job status
-        cmd = "sbatch --output=%s.out %s " % (scriptPath, scriptPath)
+        cmd = "sbatch --output=%(s)s.out --error=%(s)s.error.out %(s)s " % {"s": scriptPath}
         rc, out = self.exec_run(cmd)
         if rc != 0:
+            print(str(rc), out)
             raise JobSubmissionError(out)
         jobId = int(out.split()[-1])
-        return jobId, scriptPath + ".out"
+        return jobId, scriptPath + ".out", scriptPath + ".error.out"
 
     @retry(
         wait=wait_fixed(6),
         stop=stop_after_attempt(10),
-        reraise=True
+        retry_error_callback=lambda retry_state: None
     )
-    def remove_job_output(self, outputFilePath):
+    def remove_job_output(self, jobId, outputFilePath, errorFilePath):
+        """
+        The creationt of the job's output file will sometimes lag behind the
+        job's completion. This is a cleanup step, so retry the operation, but
+        don't raise a test error.
+        """
+        if os.path.exists(errorFilePath):
+            with open(errorFilePath, "r") as errorFile: print(errorFile.read())
+            os.remove(errorFilePath)
         os.remove(outputFilePath)
 
     @retry(
         wait=wait_fixed(6),
         stop=stop_after_attempt(10),
-        retry=retry_if_result(lambda state: state == "RUNNING"),
+        retry=retry_if_result(lambda state: state not in ["COMPLETED", "FAILED"]),
         retry_error_callback=lambda retry_state: retry_state.outcome.result()
     )
     def get_final_job_state(self, jobId):
-        rc, out = self.exec_run("sacct -b -j " + str(jobId))
+        rc, out =self.exec_run("scontrol show job " + str(jobId))
         assert rc==0, "Could not get job state from Slurm:\n" + out
-        # sacct returns a table. entries start on line 3
-        job_table = out.split("\n")
-        assert len(job_table) >= 3, "Could not find job: " + jobId
-        # state is in second column
-        state = job_table[3].split()[1]
-        return state
+        job_prop_lines = out.split("\n")
+        assert len(job_prop_lines) >= 4, "Could not find job: " + jobId + "\n" + out
+        for job_prop_line in job_prop_lines:
+            properties = job_prop_line.split()
+            for prop in properties:
+                keyVal = prop.split("=")
+                assert len(keyVal) == 2, "Could not parse state from: " + out
+                if keyVal[0] == "JobState":
+                    return keyVal[1], out
+        assert False, "Could not parse state from: " + out
 
-    def get_job_status(self, jobId):
+    def get_workflow_status(self, jobId):
         rc, out = self.exec_run("scontrol show bbstat workflow " + str(jobId))
         assert rc ==0, "Could not get job status from Slurm:\n" + out
-        
         status = {}
         properties = out.split()
         for prop in properties:

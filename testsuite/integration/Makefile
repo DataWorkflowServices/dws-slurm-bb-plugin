@@ -62,6 +62,23 @@ test:
 	docker compose build
 	docker compose up
 
+.PHONY: debug
+debug:
+	echo "***** SLURMCTLD LOGS *****"
+	docker logs slurmctld
+	echo
+	echo "***** SLURM COMPUTE LOGS *****"
+	docker logs c1
+	echo
+	echo "***** KIND NODE *****"
+	kubectl describe node dws-control-plane dws-worker
+	echo
+	echo "***** DWS DEPLOYMENT *****"
+	kubectl describe deployment -n dws-operator-system dws-operator-controller-manager
+	echo
+	echo "***** DWS LOGS *****"
+	kubectl logs -n dws-operator-system deployment/dws-operator-controller-manager
+	
 .PHONY: reports
 reports:
 	mkdir reports

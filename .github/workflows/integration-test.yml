@@ -90,7 +90,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=dws-test-driver-${{ env.BRANCH }}
 
       - name: Integration Test
-        run: cd testsuite/integration && make setup test reports
+        run: cd testsuite/integration && make setup test reports debug
 
       - name: Publish Test Results
         uses: actions/upload-artifact@v3

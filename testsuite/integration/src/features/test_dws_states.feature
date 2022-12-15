@@ -44,7 +44,7 @@ Feature: Data Workflow Services State Progression
         And the Workflow and job progress to the PostRun state
         And the Workflow and job progress to the DataOut state
         And the Workflow and job progress to the Teardown state
-        And the job completes successfully
+        And the job is COMPLETED
 
     @todo
     Scenario: The DWS-BB Plugin can handle DWS driver errors

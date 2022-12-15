@@ -54,7 +54,7 @@ def _(k8s, slurmctld, jobId, state):
         lambda wf: wf.data["status"]["state"], state
     )
 
-    jobStatus = slurmctld.get_job_status(jobId)
+    jobStatus = slurmctld.get_workflow_status(jobId)
     assert jobStatus["desiredState"] == state, "Incorrect desired state: " + str(jobStatus)
     assert jobStatus["currentState"] == state, "Incorrect current state: " + str(jobStatus)
     assert jobStatus["status"] == "DriverWait", "Incorrect status: " + str(jobStatus)
@@ -66,7 +66,6 @@ def _(k8s, slurmctld, jobId, state):
             driverStatus["status"] = "Completed"
 
     workflow.save_driver_statuses()
-
 
 @then('the Workflow\'s hurry flag is set to <hurry_flag>')
 def _():
