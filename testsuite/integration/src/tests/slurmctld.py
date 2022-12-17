@@ -22,9 +22,9 @@ import os
 import warnings
 from tenacity import *
 
-# Submitting jobs can fail, occasionally, wen the DWS webhook rejects the
+# Submitting jobs can fail, occasionally, when the DWS webhook rejects the
 # mutating webhook connection. This has only been observed using the
-# directive rulese included with  the dws-test-driver in a local kind
+# directive rules included with  the dws-test-driver in a local kind
 # environment. 
 class JobSubmissionError(Exception):
     pass
@@ -67,7 +67,7 @@ class Slurmctld:
     )
     def remove_job_output(self, jobId, outputFilePath, errorFilePath):
         """
-        The creationt of the job's output file will sometimes lag behind the
+        The creation of the job's output file will sometimes lag behind the
         job's completion. This is a cleanup step, so retry the operation, but
         don't raise a test error.
         """

@@ -78,7 +78,8 @@ jobs:
           cache-from: type=gha,scope=dws-${{ env.BRANCH }}
           cache-to: type=gha,mode=max,scope=dws-${{ env.BRANCH }}
 
-      # Pre-build dws-test-driver image with docker cache. Expect 2 minutes for a full build
+      # Pre-build dws-test-driver image with docker cache. Expect 2 minutes
+      # for a full build
       - name: Build dws-test-driver
         uses: docker/build-push-action@v3
         with:
@@ -90,7 +91,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=dws-test-driver-${{ env.BRANCH }}
 
       - name: Integration Test
-        run: cd testsuite/integration && make setup test reports debug
+        run: cd testsuite/integration && make setup test reports
 
       - name: Publish Test Results
         uses: actions/upload-artifact@v3
@@ -100,6 +101,6 @@ jobs:
 
       # The "Integration Test" step should never fail, otherwise the test
       # reports will not be available. This step will check the integration
-      # test container to see if a failure occured.
+      # test container to see if a failure occurred.
       - name: Check Integration Test
         run: test $(docker inspect integration-test --format="{{.State.ExitCode}}") -eq 0
