@@ -30,49 +30,60 @@ from pytest_bdd import (
 scenarios("test_dws_states.feature")
 
 @when('a Workflow is created for the job')
+@then('the workflow still exists')
 def _(k8s, jobId):
     """a Workflow is created for the job."""
     workflow = Workflow(k8s, jobId)
     assert workflow.data != None, "Workflow for Job: " + str(jobId) + " not found"
+    
+    yield
 
-@when('the job is canceled with the hurry flag set to <hurry_flag>')
-def _():
-    """the job is canceled with the hurry flag set to <hurry_flag>."""
-    raise NotImplementedError
+    # attempt to delete workflow if it still exists
+    try:
+        workflow.delete()
+    except:
+        pass
 
-@when('the job\'s temporary Workflow is not found')
-def _():
-    """the job's temporary Workflow is not found."""
-    raise NotImplementedError
+@when(parsers.parse('the Workflow status becomes {status:l}'))
+def _(slurmctld, jobId, status):
+    """the Workflow status is <status> before the job is canceled"""
+    workflowStatus = slurmctld.get_workflow_status(jobId)
+    assert workflowStatus["status"] == status
 
+@when('the job is canceled')
+def _(slurmctld, jobId):
+    """the job is canceled"""
+    slurmctld.cancel_job(jobId, False)
+
+@when(parsers.parse('the Workflow and job progress to the {state:l} state'))
 @then(parsers.parse('the Workflow and job progress to the {state:l} state'))
 def _(k8s, slurmctld, jobId, state):
     """the Workflow and job progress to the <state> state."""
     workflow = Workflow(k8s, jobId)
     workflow.wait_until(
         "the state the workflow is transitioning to",
-        lambda wf: wf.data["status"]["state"], state
+        lambda wf: wf.data["status"]["state"] == state and wf.data["status"]["status"] in ["Error", "DriverWait"]
     )
+    print("job %s progressed to state %s" % (str(jobId),state))
 
     jobStatus = slurmctld.get_workflow_status(jobId)
     assert jobStatus["desiredState"] == state, "Incorrect desired state: " + str(jobStatus)
     assert jobStatus["currentState"] == state, "Incorrect current state: " + str(jobStatus)
-    assert jobStatus["status"] == "DriverWait", "Incorrect status: " + str(jobStatus)
+    assert jobStatus["status"] == workflow.data["status"]["status"], "Incorrect status: " + str(jobStatus)
 
     # Set driver status to completed so the workflow can progress to the next state
+    updateRequired = False
     for driverStatus in workflow.data["status"]["drivers"]:
-        if driverStatus["driverID"] == "tester" and state in driverStatus["watchState"]:
+        if driverStatus["driverID"] == "tester" and state in driverStatus["watchState"] and driverStatus["status"] == "Pending":
+            print("updating job %s to complete state %s" % (str(jobId), state))
             driverStatus["completed"] = True
             driverStatus["status"] = "Completed"
+            updateRequired = True
 
-    workflow.save_driver_statuses()
+    if updateRequired: 
+        workflow.save_driver_statuses()
 
-@then('the Workflow\'s hurry flag is set to <hurry_flag>')
-def _():
-    """the Workflow's hurry flag is set to <hurry_flag>."""
-    raise NotImplementedError
-
-@then('the job shows an error with message "{message}"')
-def _():
-    """the job shows an error with message "{message}"}"."""
-    raise NotImplementedError
+@then(parsers.parse("the job's system comment contains the following:\n{message}"))
+def _(slurmctld, jobId, message):
+    _,out = slurmctld.get_final_job_state(jobId)
+    assert message in out

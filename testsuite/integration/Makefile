@@ -51,7 +51,7 @@ setup-dws-test-driver:
 		cd ../submodules/dws-test-driver ; \
 		docker buildx build -t local/dws-test-driver-operator:test --load . ; \
 		IMAGE_TAG_BASE=local/dws-test-driver-operator VERSION=test KIND_CLUSTER=dws make kind-push deploy ; \
-		kubectl wait deployment --timeout=60s -n dws-operator-system dws-test-driver-controller-manager --for condition=Available=True ; \
+		kubectl wait deployment --timeout=60s -n dws-test-operator-system dws-test-driver-controller-manager --for condition=Available=True ; \
 	}
 
 .PHONY: setup

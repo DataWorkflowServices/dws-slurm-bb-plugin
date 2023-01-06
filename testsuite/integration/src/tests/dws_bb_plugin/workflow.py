@@ -21,8 +21,8 @@ from kubernetes import client, config
 from tenacity import *
 
 class WorkflowWaitError(Exception):
-    def __init__(self, workflowName, description, desiredValue):
-        super().__init__(description + " never reached " + desiredValue + " for workflow[" + workflowName + "]")
+    def __init__(self, workflowName, description):
+        super().__init__("TIMED OUT WAITNIGN FOR: " + description + " for workflow[" + workflowName + "]")
 
 class Workflow:
     def __init__(self, k8s, jobId):
@@ -42,8 +42,8 @@ class Workflow:
         return self._data
 
     @retry(
-        wait=wait_fixed(6),
-        stop=stop_after_attempt(10),
+        wait=wait_fixed(2),
+        stop=stop_after_attempt(30),
         reraise=True
     )
     def _get_data(self):
@@ -54,16 +54,17 @@ class Workflow:
         return workflowData
 
     @retry(
-        wait=wait_fixed(6),
-        stop=stop_after_attempt(10),
+        wait=wait_fixed(2),
+        stop=stop_after_attempt(20),
         reraise=True
     )
-    def wait_until(self, description, wf_callable, desiredValue):
-        """Wait until the wf_callable returns the desiredValue"""
+    def wait_until(self, description, is_ready):
+        """Wait until the wf_callable returns true"""
         wf = Workflow(self.k8s, self.jobId)
-        if wf_callable(wf) != desiredValue:
-            raise WorkflowWaitError(self.name, description, desiredValue)
-
+        if not is_ready(wf):
+            print("not ready")
+            raise WorkflowWaitError(self.name, description)
+        print("ready")
         self._data = wf.data
     
     def save_driver_statuses(self):
@@ -74,4 +75,9 @@ class Workflow:
         }
         self.k8s.CustomObjectsApi().patch_namespaced_custom_object(
             "dws.cray.hpe.com", "v1alpha1", "slurm", "workflows", self.name, patchData
+        )
+        
+    def delete(self):
+        self.k8s.CustomObjectsApi().delete_namespaced_custom_object(
+            "dws.cray.hpe.com", "v1alpha1", "slurm", "workflows", self.name
         )

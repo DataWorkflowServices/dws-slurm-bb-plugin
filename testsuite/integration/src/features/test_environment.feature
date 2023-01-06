@@ -35,7 +35,7 @@ Feature: Integration test environment
             srun -l /bin/hostname
             srun -l /bin/pwd
         When the job is run
-        Then the job is COMPLETED
+        Then the job state is COMPLETED
 
     Scenario: Kubernetes and slurm are connected
         Given the kubernetes cluster kube-system UID
