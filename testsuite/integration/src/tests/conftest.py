@@ -87,7 +87,7 @@ def _(slurmctld, jobId, expectedJobState):
     jobState, out = slurmctld.get_final_job_state(jobId)
 
     if expectedJobState == "COMPLETED" and jobState == "FAILED":
-        warnings.warn(ResourceWarning(("Job %s failed unexpectedly.\n" % jobId) + \
+        warnings.warn(ResourceWarning((f"Job {jobId} failed unexpectedly.\n") + \
             "This may happen if Slurm doesn't have enough resources to schedule the job.\n" + \
             "This is not considered a test failure, in this context, since DWS isn't\n" + \
             "dependent on the job's failure or success."

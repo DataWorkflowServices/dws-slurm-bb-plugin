@@ -52,7 +52,7 @@ class Slurmctld:
         print("submit job")
         # The --wait option could be used here. However, other tests need to
         # asynchronously track the job status
-        cmd = "sbatch --output=%(s)s.out --error=%(s)s.error.out %(s)s " % {"s": scriptPath}
+        cmd = f"sbatch --output={scriptPath}.out --error={scriptPath}.error.out {scriptPath}"
         rc, out = self.exec_run(cmd)
         if rc != 0:
             print(str(rc), out)
