@@ -19,54 +19,55 @@
 
 """Integration test environment feature tests."""
 
-import docker
 import json
-from kubernetes import client, config
-import pytest
+import os
 from pytest_bdd import (
     given,
     scenarios,
+    parsers,
     then,
     when,
 )
 
 scenarios("test_environment.feature")
 
-@pytest.fixture
-def k8s():
-    config.load_kube_config()
-    v1 = client.CoreV1Api()
-    return v1
-
-@pytest.fixture
-def slurmctld():
-    return docker.from_env().containers.get("slurmctld")
-
 @given('the kubernetes cluster kube-system UID', target_fixture="kube_system_uid")
 def _(k8s):
     """the kubernetes cluster kube-system UID."""
-    ns_list = k8s.list_namespace(field_selector="metadata.name==kube-system")
+    ns_list = k8s.CoreV1Api().list_namespace(field_selector="metadata.name==kube-system")
     assert len(ns_list.items) == 1, "kube-system namespace not found"
     return ns_list.items[0].metadata.uid
 
 @when('kubernetes cluster nodes are queried', target_fixture="k8s_nodes")
 def _(k8s):
     """kubernetes cluster nodes are queried."""
-    return k8s.list_node().items
+    return k8s.CoreV1Api().list_node().items
+
+@when('the DataWorkflowServices deployment is queried', target_fixture="dws_deployment_list")
+def _(k8s):
+    """the DataWorkflowServices deployment is queried."""
+    return k8s.AppsV1Api().list_namespaced_deployment(
+        namespace="dws-operator-system",
+        field_selector="metadata.name=dws-operator-controller-manager"
+    )
 
 @when('the kube-system UID is queried from slurmctld', target_fixture="kube_system_uid_from_slurmctld")
 def _(slurmctld):
     """the kube-system UID is queried from slurmctld."""
-    rc,out = slurmctld.exec_run(["kubectl", "get", "namespace","-o=json", "kube-system"],
-        user="slurm")
-    assert rc==0, "non-zero return code: \n" + str(out)
-    return json.loads(str(out, 'utf-8'))["metadata"]["uid"]
-
+    rc,out = slurmctld.exec_run("kubectl get namespace -o=json kube-system")
+    assert rc==0, "non-zero return code: \n" + out
+    return json.loads(out)["metadata"]["uid"]
 
 @then('one or more kubernetes nodes are available')
 def _(k8s_nodes):
     """one or more kubernetes nodes are available."""
     assert len(k8s_nodes) > 0
+
+@then('the DataWorkflowServices deployment is found')
+def _(dws_deployment_list):
+    """the DataWorkflowServices deployment is found."""
+    assert len(dws_deployment_list.items) == 1, \
+        "An incorrect number of DWS deployments was found"
 
 @then('the UIDs match and the cluster is the same')
 def _(kube_system_uid, kube_system_uid_from_slurmctld):

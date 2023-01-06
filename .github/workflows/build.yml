@@ -29,6 +29,7 @@ jobs:
   publish-unit-test:
     uses: ./.github/workflows/publish-unit-test.yml
     needs: unit-test
+    if: always()
   integration-test:
     uses: ./.github/workflows/integration-test.yml
     needs: unit-test

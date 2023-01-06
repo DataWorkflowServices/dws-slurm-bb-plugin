@@ -3,3 +3,4 @@ pytest-bdd == 6
 pytest-html == 3
 docker == 6
 kubernetes >= 25.3
+tenacity == 8
