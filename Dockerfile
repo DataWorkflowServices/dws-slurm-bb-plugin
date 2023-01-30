@@ -10,13 +10,11 @@ COPY testsuite/submodules/dws /dws
 FROM testbase AS testrun
 
 WORKDIR /
-COPY testsuite/unit/bin /bin
 COPY testsuite/unit/luacov.lua /.luacov
 COPY testsuite/unit/output.lua /output.lua
 COPY src /
 COPY testsuite/unit/src/burst_buffer/dws-test.lua /
 
-ENV MOCK_SLURM yes
 RUN busted -o output.lua -Xoutput junit.xml --verbose --coverage *test.lua || \
     touch testsFailed.indicator
 

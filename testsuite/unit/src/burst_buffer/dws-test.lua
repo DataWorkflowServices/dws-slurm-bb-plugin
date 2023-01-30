@@ -21,40 +21,14 @@ require("burst_buffer/burst_buffer")
 
 math.randomseed(os.time())
 
-local IS_REAL_K8S = false
-local IS_NOT_K8S = true
-if os.getenv("REAL_K8S") ~= nil then
-	-- Expect to be running against a live K8s environment, with kubectl
-	-- and DWS operator.
-	print("Running live")
-	IS_REAL_K8S = true
-	IS_NOT_K8S = false
-end
-
-local REAL_SLURM = true
-if os.getenv("MOCK_SLURM") ~= nil then
-	-- Provide a few logging functions and variables that would have been
-	-- provided by a live slurm environment.
-	REAL_SLURM = false
-	_G.slurm = {
-		ERROR = -1,
-		SUCCESS = 0,
-		log_info = function(...) print(string.format(...)) end,
-		log_error = function(...) print(string.format(...)) end,
-	}
-end
-
-local CRDFILE = os.getenv("CRDFILE")
-if CRDFILE == nil and IS_NOT_K8S then
-	-- The CRD location in the container image.
-	CRDFILE = "/dws/config/crd/bases/dws.cray.hpe.com_workflows.yaml"
-end
-
-local VALIDATOR = os.getenv("VALIDATOR")
-if VALIDATOR == nil and IS_NOT_K8S then
-	-- The validator tool's location in the container image.
-	VALIDATOR = "/bin/validate"
-end
+-- Provide a few logging functions and variables that would have been
+-- provided by a live slurm environment.
+_G.slurm = {
+	ERROR = -1,
+	SUCCESS = 0,
+	log_info = function(...) print(string.format(...)) end,
+	log_error = function(...) print(string.format(...)) end,
+}
 
 -- The default Workflow label, in a form that is easy to use with kubectl-get.
 local DEFAULT_LABEL_KV = DEFAULT_LABEL_KEY .. "=" .. DEFAULT_LABEL_VAL
@@ -99,10 +73,10 @@ local query_label = function(workflow, label_kv)
 	dwsmq_enqueue(true, "") -- kubectl_cache_home
 	dwsmq_enqueue(true, result_wanted)
 	local done, err = workflow:kubectl("get workflows --no-headers -o custom-columns=MAME:.metadata.name -l " .. label_kv)
-	if IS_NOT_K8S then
-		assert.stub(io.popen).was_called(2)
-		io.popen:clear()
-	end
+
+	assert.stub(io.popen).was_called(2)
+	io.popen:clear()
+
 	assert.is_true(done, err)
 	assert.is_equal(err, result_wanted)
 end
@@ -267,10 +241,10 @@ describe("The dws library", function()
 		local done, err = workflow:apply(yaml_name)
 		resource_exists = done
 		assert.is_true(done, err)
-		if IS_NOT_K8S then
-			assert.stub(io.popen).was_called(2)
-			io.popen:clear()
-		end
+
+		assert.stub(io.popen).was_called(2)
+		io.popen:clear()
+
 		assert.is_equal(err, result_wanted)
 	end
 
@@ -282,10 +256,10 @@ describe("The dws library", function()
 		dwsmq_enqueue(true, result_wanted)
 		local done, err = workflow:delete()
 		resource_exists = done
-		if IS_NOT_K8S then
-			assert.stub(io.popen).was_called(2)
-			io.popen:clear()
-		end
+
+		assert.stub(io.popen).was_called(2)
+		io.popen:clear()
+
 		assert.is_true(done, err)
 		assert.is_equal(err, result_wanted)
 	end
@@ -318,25 +292,11 @@ describe("The dws library", function()
 	context("simple create/delete cases", function()
 
 		before_each(function()
-			if IS_NOT_K8S then
-				stub(io, "popen")
-			end
+			stub(io, "popen")
 		end)
 
 		after_each(function()
-			if resource_exists and IS_REAL_K8S then
-				-- If resource_exists is still true here then
-				-- we already have an error condition.  Try
-				-- to clean it up but don't bother checking for
-				-- more errors.
-				workflow:delete()
-			end
-		end)
-
-		after_each(function()
-			if IS_NOT_K8S then
-				io.popen:revert()
-			end
+			io.popen:revert()
 		end)
 
 		it("can apply and delete a workflow resource", function()
@@ -375,9 +335,7 @@ describe("The dws library", function()
 			invalid_state = false
 
 			make_and_save_workflow_yaml()
-			if IS_NOT_K8S then
-				stub(io, "popen")
-			end
+			stub(io, "popen")
 		end)
 
 		-- Create the resource.
@@ -389,23 +347,16 @@ describe("The dws library", function()
 		after_each(function()
 			if resource_exists and expect_exists then
 				dwsmq_reset()
-				if IS_NOT_K8S then
-					io.popen:clear()
-				end
+				io.popen:clear()
+
 				delete_workflow()
-			elseif resource_exists and IS_REAL_K8S then
-				-- We didn't expect to create a resource, but
-				-- we got one. So we're already in an error
-				-- condition.  Just try to clean up the mess.
-				workflow:delete()
 			end
 		end)
 
 		-- Undo the stub for io.popen, if appropriate.
 		after_each(function()
-			if IS_NOT_K8S then
-				io.popen:revert()
-			end
+			io.popen:revert()
+
 		end)
 
 		-- Progress the resource to the desired state.  Attempt to set
@@ -427,10 +378,10 @@ describe("The dws library", function()
 			dwsmq_enqueue(ret_wanted, result_wanted)
 
 			local done, err = workflow:set_desired_state(new_state, hurry)
-			if IS_NOT_K8S then
-				assert.stub(io.popen).was_called(2)
-				io.popen:clear()
-			end
+
+			assert.stub(io.popen).was_called(2)
+			io.popen:clear()
+
 			assert.is_equal(done, ret_wanted)
 			assert.is_equal(err, result_wanted)
 		end
@@ -442,10 +393,27 @@ describe("The dws library", function()
 			dwsmq_enqueue(true, "") -- kubectl_cache_home
 			dwsmq_enqueue(true, result_wanted)
 			local done, status, err = workflow:wait_for_status_complete(60)
-			if IS_NOT_K8S then
-				assert.stub(io.popen).was_called(2)
-				io.popen:clear()
-			end
+
+			assert.stub(io.popen).was_called(2)
+			io.popen:clear()
+
+			assert.is_true(done, err)
+			assert.is_equal(status["desiredState"], state)
+			assert.is_equal(status["currentState"], state)
+			assert.is_equal(status["status"], "Completed")
+		end
+
+		-- Handle errors returned from DWS during state transition
+		local wait_for_state_errors = function(state)
+			local result_wanted = "desiredState=" .. state .. "\ncurrentState=" .. state .. "\nstatus=Completed\n"
+
+			dwsmq_enqueue(true, "") -- kubectl_cache_home
+			dwsmq_enqueue(true, result_wanted)
+			local done, status, err = workflow:wait_for_status_complete(60)
+
+			assert.stub(io.popen).was_called(2)
+			io.popen:clear()
+
 			assert.is_true(done, err)
 			assert.is_equal(status["desiredState"], state)
 			assert.is_equal(status["currentState"], state)
@@ -462,10 +430,10 @@ describe("The dws library", function()
 			dwsmq_enqueue(true, "") -- kubectl_cache_home
 			dwsmq_enqueue(true, result_wanted)
 			local done, hurry = workflow:get_hurry()
-			if IS_NOT_K8S then
-				assert.stub(io.popen).was_called(2)
-				io.popen:clear()
-			end
+
+			assert.stub(io.popen).was_called(2)
+			io.popen:clear()
+
 			assert.is_true(done, hurry)
 			assert.is_equal(desired_hurry, hurry)
 		end
@@ -535,14 +503,13 @@ describe("The dws library", function()
 			dwsmq_enqueue(true, wait_result_wanted)
 
 			expect_exists = true
-			if IS_NOT_K8S then
-				io.popen:clear()
-			end
+
+			io.popen:clear()
 			local done, err = workflow:set_workflow_state_and_wait(new_state)
-			if IS_NOT_K8S then
-				assert.stub(io.popen).was_called(4)
-				io.popen:clear()
-			end
+
+			assert.stub(io.popen).was_called(4)
+			io.popen:clear()
+
 			assert.is_true(done, err)
 		end)
 
@@ -587,9 +554,7 @@ describe("The dws library", function()
 		local result_wanted = "Error from server"
 
 		before_each(function()
-			if IS_NOT_K8S then
-				stub(io, "popen")
-			end
+			stub(io, "popen")
 		end)
 
 		after_each(function()
@@ -598,26 +563,12 @@ describe("The dws library", function()
 			local done, err = workflow:apply(yaml_name)
 			resource_exists = done
 			assert.is_not_true(done)
-			if IS_NOT_K8S then
-				assert.stub(io.popen).was_called(2)
-			end
+			assert.stub(io.popen).was_called(2)
 			assert.is_true(string.find(err, result_wanted) ~= nil, err)
 		end)
 
 		after_each(function()
-			if resource_exists and IS_REAL_K8S then
-				-- If resource_exists is still true here then
-				-- we already have an error condition.  Try
-				-- to clean it up but don't bother checking for
-				-- more errors.
-				workflow:delete()
-			end
-		end)
-
-		after_each(function()
-			if IS_NOT_K8S then
-				io.popen:revert()
-			end
+			io.popen:revert()
 		end)
 
 		it("cannot apply an invalid jobID", function()
@@ -715,9 +666,7 @@ describe("Burst buffer helpers", function()
 			workflow_name = make_workflow_name(jobID)
 			workflow = DWS(workflow_name)
 
-			if IS_NOT_K8S then
-				stub(io, "popen")
-			end
+			stub(io, "popen")
 		end)
 
 		after_each(function()
@@ -727,29 +676,18 @@ describe("Burst buffer helpers", function()
 				dwsmq_reset()
 				dwsmq_enqueue(true, "") -- kubectl_cache_home
 				dwsmq_enqueue(true, result_wanted)
-				if IS_NOT_K8S then
-					io.popen:clear()
-				end
+				io.popen:clear()
 				local done, err = workflow:delete()
 				resource_exists = done
-				if IS_NOT_K8S then
-					assert.stub(io.popen).was_called(2)
-				end
+				assert.stub(io.popen).was_called(2)
+
 				assert.is_true(done, err)
 				assert.is_equal(err, result_wanted)
-
-			elseif resource_exists and IS_REAL_K8S then
-				-- We didn't expect to create a resource, but
-				-- we got one. So we're already in an error
-				-- condition.  Just try to clean up the mess.
-				workflow:delete()
 			end
 		end)
 
 		after_each(function()
-			if IS_NOT_K8S then
-				io.popen:revert()
-			end
+			io.popen:revert()
 		end)
 
 		local create_workflow = function(labels)
@@ -766,10 +704,8 @@ describe("Burst buffer helpers", function()
 			end
 			resource_exists = done
 			expect_exists = true
-			if IS_NOT_K8S then
-				assert.stub(io.popen).was_called(2)
-				io.popen:clear()
-			end
+			assert.stub(io.popen).was_called(2)
+			io.popen:clear()
 			if err ~= nil then
 				print(err)
 			end
@@ -813,9 +749,7 @@ describe("Burst buffer helpers", function()
 			local done, err = make_workflow(workflow, job_script_name, jobID, userID, groupID)
 			resource_exists = done
 			expect_exists = false
-			if IS_NOT_K8S then
-				assert.stub(io.popen).was_called(2)
-			end
+			assert.stub(io.popen).was_called(2)
 			print("Expect an error message here: " .. err)
 			assert.is_not_true(done, err)
 			assert.is_not_nil(string.find(err, result_wanted))
@@ -857,9 +791,7 @@ describe("Slurm API", function()
 		resource_exists = false
 		expect_exists = false
 
-		if IS_NOT_K8S then
-			stub(io, "popen")
-		end
+		stub(io, "popen")
 	end)
 
 	after_each(function()
@@ -876,30 +808,19 @@ describe("Slurm API", function()
 			dwsmq_reset()
 			dwsmq_enqueue(true, "") -- kubectl_cache_home
 			dwsmq_enqueue(true, result_wanted)
-			if IS_NOT_K8S then
-				io.popen:clear()
-			end
+			io.popen:clear()
 			local done, err = workflow:delete()
 			resource_exists = done
-			if IS_NOT_K8S then
-				assert.stub(io.popen).was_called(2)
-			end
+			assert.stub(io.popen).was_called(2)
 			assert.is_true(done, err)
 			assert.is_equal(err, result_wanted)
 
-		elseif resource_exists and IS_REAL_K8S then
-			-- We didn't expect to create a resource, but
-			-- we got one. So we're already in an error
-			-- condition.  Just try to clean up the mess.
-			workflow:delete()
 		end
 
 	end)
 
 	after_each(function()
-		if IS_NOT_K8S then
-			io.popen:revert()
-		end
+		io.popen:revert()
 	end)
 
 	it("slurm_bb_job_process can validate a workflow from a job script lacking directives", function()
@@ -923,9 +844,7 @@ describe("Slurm API", function()
 		-- all of this.
 
 		local ret, err = slurm_bb_job_process(job_script_name)
-		if IS_NOT_K8S then
-			assert.stub(io.popen).was_called(4)
-		end
+		assert.stub(io.popen).was_called(4)
 		assert.is_equal(ret, slurm.SUCCESS)
 		assert.is_nil(err, err)
 	end)
@@ -946,9 +865,7 @@ describe("Slurm API", function()
 		dwsmq_enqueue(false, result_wanted)
 
 		local ret, err = slurm_bb_job_process(job_script_name)
-		if IS_NOT_K8S then
-			assert.stub(io.popen).was_called(2)
-		end
+		assert.stub(io.popen).was_called(2)
 		print("Expect an error message here: " .. err)
 		assert.is_equal(ret, slurm.ERROR)
 		assert.is_not_nil(string.find(err, result_wanted))
@@ -978,10 +895,8 @@ describe("Slurm API", function()
 			resource_exists = true
 			workflow = DWS(workflow_name)
 		end
-		if IS_NOT_K8S then
-			assert.stub(io.popen).was_called(8)
-			io.popen:clear()
-		end
+		assert.stub(io.popen).was_called(8)
+		io.popen:clear()
 		assert.is_equal(ret, slurm.SUCCESS)
 		assert.is_nil(err, err)
 	end
@@ -998,18 +913,14 @@ describe("Slurm API", function()
 		dwsmq_enqueue(true, "") -- kubectl_cache_home
 		dwsmq_enqueue(true, delete_result_wanted)
 
-		if IS_NOT_K8S then
-			io.popen:clear()
-		end
+		io.popen:clear()
 		local ret, err = slurm_bb_job_teardown(jobID, job_script_name, hurry)
 		expect_exists = false
 		if ret == slurm.SUCCESS then
 			resource_exists = false
 		end
-		if IS_NOT_K8S then
-			assert.stub(io.popen).was_called(6)
-			io.popen:clear()
-		end
+		assert.stub(io.popen).was_called(6)
+		io.popen:clear()
 		assert.is_equal(ret, slurm.SUCCESS)
 		assert.is_nil(err, err)
 	end
@@ -1026,9 +937,7 @@ describe("Slurm API", function()
 		dwsmq_enqueue(true, "") -- kubectl_cache_home
 		dwsmq_enqueue(true, status_complete_result_wanted)
 
-		if IS_NOT_K8S then
-			io.popen:clear()
-		end
+		io.popen:clear()
 		local funcs = {
 			["DataIn"] = slurm_bb_data_in,
 			["PreRun"] = slurm_bb_pre_run,
@@ -1036,23 +945,17 @@ describe("Slurm API", function()
 			["DataOut"] = slurm_bb_data_out,
 		}
 		local ret, err = funcs[new_state](jobID, job_script_name)
-		if IS_NOT_K8S then
-			assert.stub(io.popen).was_called(4)
-		end
+		assert.stub(io.popen).was_called(4)
 		assert.is_equal(ret, slurm.SUCCESS)
 		assert.is_nil(err, err)
 
 		dwsmq_enqueue(true, "") -- kubectl_cache_home
 		dwsmq_enqueue(true, status_complete_result_wanted)
 		local bb_status_wanted = "desiredState=" .. new_state .. " currentState=" .. new_state .. " status=Completed"
-		if IS_NOT_K8S then
-			io.popen:clear()
-		end
+		io.popen:clear()
 		local ret, msg = slurm_bb_get_status("workflow", jobID)
-		if IS_NOT_K8S then
-			assert.stub(io.popen).was_called(2)
-			io.popen:clear()
-		end
+		assert.stub(io.popen).was_called(2)
+		io.popen:clear()
 		print(msg)
 		assert.is_equal(ret, slurm.SUCCESS)
 		assert.is_equal(msg, bb_status_wanted)
@@ -1076,13 +979,9 @@ describe("Slurm API", function()
 
 		local call_bb_status_negative = function(someID)
 			local status_wanted = "A job ID must contain only digits."
-			if IS_NOT_K8S then
-				io.popen:clear()
-			end
+			io.popen:clear()
 			local ret, msg = slurm_bb_get_status("workflow", someID)
-			if IS_NOT_K8S then
-				assert.stub(io.popen).was_not_called()
-			end
+			assert.stub(io.popen).was_not_called()
 			print(msg)
 			assert.is_equal(ret, slurm.ERROR)
 			assert.is_equal(msg, status_wanted)
@@ -1123,9 +1022,7 @@ describe("Slurm API", function()
 			dwsmq_enqueue(true, "") -- kubectl_cache_home
 			dwsmq_enqueue(false, set_state_result_wanted)
 
-			if IS_NOT_K8S then
-				io.popen:clear()
-			end
+			io.popen:clear()
 			local funcs = {
 				["DataIn"] = {slurm_bb_data_in, "slurm_bb_data_in"},
 				["PreRun"] = {slurm_bb_pre_run, "slurm_bb_pre_run"},
@@ -1136,9 +1033,7 @@ describe("Slurm API", function()
 			log_error_wanted = lua_script_name .. ": " .. funcs[new_state][2] .. "(), workflow=" .. workflow_name .. ": set_desired_state: " .. set_state_result_wanted
 
 			local ret, err = funcs[new_state][1](jobID, job_script_name)
-			if IS_NOT_K8S then
-				assert.stub(io.popen).was_called(2)
-			end
+			assert.stub(io.popen).was_called(2)
 			assert.is_equal(ret, slurm.ERROR)
 			assert.is_equal(err, "set_desired_state: " .. set_state_result_wanted)
 		end
