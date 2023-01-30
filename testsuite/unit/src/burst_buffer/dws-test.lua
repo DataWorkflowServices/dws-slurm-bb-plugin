@@ -871,71 +871,61 @@ describe("Slurm API", function()
 		assert.is_not_nil(string.find(err, result_wanted))
 	end)
 
-	local call_bb_setup = function()
-		local job_script = "#!/bin/bash\nsrun application.sh\n"
-		write_job_script(job_script_name, job_script)
+	local mock_popen_calls = function(state, status, k8s_cmd_result)
+		local k8s_cmd_result = k8s_cmd_result or "workflow.dws.cray.hpe.com/" .. workflow_name .. " patched\n"
+		local state_result = "desiredState=".. state .."\ncurrentState=".. state .."\nstatus=".. status .."\n"
+		dwsmq_enqueue(true, "") -- kubectl_cache_home
+		dwsmq_enqueue(true, k8s_cmd_result)
+		dwsmq_enqueue(true, "") -- kubectl_cache_home
+		dwsmq_enqueue(true, state_result)
+		-- return the number of messages queued
+		return 4
+	end
 
-		local apply_result_wanted = "workflow.dws.cray.hpe.com/" .. workflow_name .. " created\n"
-		local proposal_status_complete_result_wanted = "desiredState=Proposal\ncurrentState=Proposal\nstatus=Completed\n"
-		local set_state_result_wanted = "workflow.dws.cray.hpe.com/" .. workflow_name .. " patched\n"
-		local setup_status_complete_result_wanted = "desiredState=Setup\ncurrentState=Setup\nstatus=Completed\n"
-
-		dwsmq_enqueue(true, "") -- kubectl_cache_home
-		dwsmq_enqueue(true, apply_result_wanted)
-		dwsmq_enqueue(true, "") -- kubectl_cache_home
-		dwsmq_enqueue(true, proposal_status_complete_result_wanted)
-		dwsmq_enqueue(true, "") -- kubectl_cache_home
-		dwsmq_enqueue(true, set_state_result_wanted)
-		dwsmq_enqueue(true, "") -- kubectl_cache_home
-		dwsmq_enqueue(true, setup_status_complete_result_wanted)
-
-		local ret, err = slurm_bb_setup(jobID, userID, groupID, "pool1", 1, job_script_name)
-		expect_exists = true
-		if ret == slurm.SUCCESS then
-			resource_exists = true
-			workflow = DWS(workflow_name)
-		end
-		assert.stub(io.popen).was_called(8)
+	local assert_bb_state_succeeds = function(ret, err, popen_calls)
+		assert.stub(io.popen).was_called(popen_calls)
 		io.popen:clear()
 		assert.is_equal(ret, slurm.SUCCESS)
 		assert.is_nil(err, err)
 	end
 
-	local call_bb_teardown = function(hurry)
-		local set_state_result_wanted = "workflow.dws.cray.hpe.com/" .. workflow_name .. " patched\n"
-		local teardown_status_complete_result_wanted = "desiredState=Teardown\ncurrentState=Teardown\nstatus=Completed\n"
-		local delete_result_wanted = 'workflow.dws.cray.hpe.com "' .. workflow_name .. '" deleted\n'
+	local call_bb_setup = function()
+		local job_script = "#!/bin/bash\nsrun application.sh\n"
+		write_job_script(job_script_name, job_script)
 
+		local apply_result = "workflow.dws.cray.hpe.com/" .. workflow_name .. " created\n"
+		local popen_count = mock_popen_calls("Proposal", "Completed", apply_result)
+		popen_count = popen_count + mock_popen_calls("Setup", "Completed")
+
+		local ret, err = slurm_bb_setup(jobID, userID, groupID, "pool1", 1, job_script_name)
+		assert_bb_state_succeeds(ret, err, popen_count)
+
+		expect_exists = true
+		resource_exists = true
+		workflow = DWS(workflow_name)
+	end
+
+	local call_bb_teardown = function(hurry)
+		local delete_result = 'workflow.dws.cray.hpe.com "' .. workflow_name .. '" deleted\n'
+		local popen_count = mock_popen_calls("Teardown", "Completed")
 		dwsmq_enqueue(true, "") -- kubectl_cache_home
-		dwsmq_enqueue(true, set_state_result_wanted)
-		dwsmq_enqueue(true, "") -- kubectl_cache_home
-		dwsmq_enqueue(true, teardown_status_complete_result_wanted)
-		dwsmq_enqueue(true, "") -- kubectl_cache_home
-		dwsmq_enqueue(true, delete_result_wanted)
+		dwsmq_enqueue(true, delete_result)
+		popen_count = popen_count + 2
 
 		io.popen:clear()
 		local ret, err = slurm_bb_job_teardown(jobID, job_script_name, hurry)
+		assert_bb_state_succeeds(ret, err, popen_count)
+
 		expect_exists = false
-		if ret == slurm.SUCCESS then
-			resource_exists = false
-		end
-		assert.stub(io.popen).was_called(6)
-		io.popen:clear()
-		assert.is_equal(ret, slurm.SUCCESS)
-		assert.is_nil(err, err)
+		resource_exists = false
 	end
 
 	-- For DataIn, PreRun, PostRun, and DataOut.
 	-- Call the appropriate slurm_bb_* function to change the state then
 	-- call slurm_bb_get_status() to confirm the change.
 	local call_bb_state = function(new_state)
-		local set_state_result_wanted = "workflow.dws.cray.hpe.com/" .. workflow_name .. " patched\n"
-		local status_complete_result_wanted = "desiredState=" .. new_state .. "\ncurrentState=" .. new_state .. "\nstatus=Completed\n"
-
-		dwsmq_enqueue(true, "") -- kubectl_cache_home
-		dwsmq_enqueue(true, set_state_result_wanted)
-		dwsmq_enqueue(true, "") -- kubectl_cache_home
-		dwsmq_enqueue(true, status_complete_result_wanted)
+		
+		local popen_count = mock_popen_calls("Teardown", "Completed")
 
 		io.popen:clear()
 		local funcs = {
@@ -948,17 +938,22 @@ describe("Slurm API", function()
 		assert.stub(io.popen).was_called(4)
 		assert.is_equal(ret, slurm.SUCCESS)
 		assert.is_nil(err, err)
+	end
 
+	local call_bb_get_status = function(state, status)
+		local state_result = "desiredState=".. state .."\ncurrentState=".. state .."\nstatus=".. status .."\n"
 		dwsmq_enqueue(true, "") -- kubectl_cache_home
-		dwsmq_enqueue(true, status_complete_result_wanted)
-		local bb_status_wanted = "desiredState=" .. new_state .. " currentState=" .. new_state .. " status=Completed"
+		dwsmq_enqueue(true, state_result)
+		local bb_status_wanted = "desiredState=" .. state .. " currentState=" .. state .. " status=".. status ..""
 		io.popen:clear()
+
 		local ret, msg = slurm_bb_get_status("workflow", jobID)
+
 		assert.stub(io.popen).was_called(2)
-		io.popen:clear()
-		print(msg)
 		assert.is_equal(ret, slurm.SUCCESS)
 		assert.is_equal(msg, bb_status_wanted)
+
+		io.popen:clear()
 	end
 
 	it("slurm_bb_setup and slurm_bb_teardown with hurry flag can setup and destroy a workflow", function()
@@ -969,10 +964,15 @@ describe("Slurm API", function()
 	it("slurm_bb_setup through all other states", function()
 		call_bb_setup()
 		call_bb_state("DataIn")
+		call_bb_get_status("DataIn", "Completed")
 		call_bb_state("PreRun")
 		call_bb_state("PostRun")
 		call_bb_state("DataOut")
 		call_bb_teardown()
+	end)
+
+	context("desired state reports error(s)", function()
+
 	end)
 
 	context("negatives for slurm_bb_get_status validation", function()
