@@ -59,7 +59,7 @@ Feature: Data Workflow Services State Progression
         And the job is canceled
         Then the Workflow and job progress to the Teardown state
         And the job's system comment contains the following:
-            Error in Workflow
+            TEST ERROR
         
         Examples:
             # *** HEADER ***
@@ -87,7 +87,7 @@ Feature: Data Workflow Services State Progression
         And a Workflow is created for the job
         Then the Workflow and job progress to the Teardown state
         And the job's system comment contains the following:
-            Error in Workflow
+            TEST ERROR
         
         Examples:
             # *** HEADER ***
@@ -104,5 +104,5 @@ Feature: Data Workflow Services State Progression
 
         When the job is run
         Then the job's system comment contains the following:
-            teardown: wait_for_status_complete: Error in Workflow
+            TEST ERROR
         And the workflow still exists

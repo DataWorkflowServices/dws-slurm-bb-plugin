@@ -773,12 +773,6 @@ describe("Slurm API", function()
 	local workflow_name
 	local workflow
 
-	-- If true then the resource is expected to exist. (Creation is expected to succeed.)
-	local expect_exists 
-
-	-- If true then the resource does exist. (Creation was successful.)
-	local resource_exists
-
 	before_each(function()
 		jobID = math.random(1000)
 		userID = math.random(1000)
@@ -786,40 +780,14 @@ describe("Slurm API", function()
 		workflow_name = make_workflow_name(jobID)
 
 		job_script_name = os.tmpname()
-		job_script_exists = true
-
-		resource_exists = false
-		expect_exists = false
 
 		stub(io, "popen")
 	end)
 
 	after_each(function()
-		if job_script_exists == true then
-			os.remove(job_script_name)
-			job_script_exists = false
-		end
-	end)
-
-	after_each(function()
-		if resource_exists and expect_exists then
-			local result_wanted = 'workflow.dws.cray.hpe.com "' .. workflow_name .. '" deleted\n'
-
-			dwsmq_reset()
-			dwsmq_enqueue(true, "") -- kubectl_cache_home
-			dwsmq_enqueue(true, result_wanted)
-			io.popen:clear()
-			local done, err = workflow:delete()
-			resource_exists = done
-			assert.stub(io.popen).was_called(2)
-			assert.is_true(done, err)
-			assert.is_equal(err, result_wanted)
-
-		end
-
-	end)
-
-	after_each(function()
+		os.remove(job_script_name)
+		dwsmq_reset()
+		io.popen:clear()
 		io.popen:revert()
 	end)
 
@@ -882,7 +850,7 @@ describe("Slurm API", function()
 		return 4
 	end
 
-	local assert_bb_state_succeeds = function(ret, err, popen_calls)
+	local assert_bb_state_success = function(ret, err, popen_calls)
 		assert.stub(io.popen).was_called(popen_calls)
 		io.popen:clear()
 		assert.is_equal(ret, slurm.SUCCESS)
@@ -898,10 +866,8 @@ describe("Slurm API", function()
 		popen_count = popen_count + mock_popen_calls("Setup", "Completed")
 
 		local ret, err = slurm_bb_setup(jobID, userID, groupID, "pool1", 1, job_script_name)
-		assert_bb_state_succeeds(ret, err, popen_count)
+		assert_bb_state_success(ret, err, popen_count)
 
-		expect_exists = true
-		resource_exists = true
 		workflow = DWS(workflow_name)
 	end
 
@@ -914,10 +880,7 @@ describe("Slurm API", function()
 
 		io.popen:clear()
 		local ret, err = slurm_bb_job_teardown(jobID, job_script_name, hurry)
-		assert_bb_state_succeeds(ret, err, popen_count)
-
-		expect_exists = false
-		resource_exists = false
+		assert_bb_state_success(ret, err, popen_count)
 	end
 
 	-- For DataIn, PreRun, PostRun, and DataOut.
@@ -935,9 +898,7 @@ describe("Slurm API", function()
 			["DataOut"] = slurm_bb_data_out,
 		}
 		local ret, err = funcs[new_state](jobID, job_script_name)
-		assert.stub(io.popen).was_called(4)
-		assert.is_equal(ret, slurm.SUCCESS)
-		assert.is_nil(err, err)
+		assert_bb_state_success(ret, err, popen_count)
 	end
 
 	local call_bb_get_status = function(state, status)
@@ -971,7 +932,45 @@ describe("Slurm API", function()
 		call_bb_teardown()
 	end)
 
-	context("desired state reports error(s)", function()
+	insulate("reports driver error(s)", function()
+		local assert_bb_state_error = function(ret, err, expected_error, popen_count)
+			assert.stub(io.popen).was_called(popen_calls)
+			io.popen:clear()
+			assert.is_equal(ret, slurm.ERROR)
+			assert.is_equal(expected_error, err)
+		end
+
+		local call_bb_setup_proposal_errors = function()
+			local job_script = "#!/bin/bash\nsrun application.sh\n"
+			write_job_script(job_script_name, job_script)
+	
+			local apply_result = "workflow.dws.cray.hpe.com/" .. workflow_name .. " created\n"
+			local popen_count = mock_popen_calls("Proposal", "Error", apply_result)
+
+			local driver_id_1 = "driver1"
+			local err_msg_1 = "Error Message #1" .. "\n" .. "error message 1 next line"
+			local driver_1_entry = string.format("===\nError\n%s\n%s\n", driver_id_1, err_msg_1)
+
+			local driver_id_2 = "driver2"
+			local err_msg_2 = "Error Message #2"
+			local driver_2_entry = string.format("===\nError\n%s\n%s\n", driver_id_2, err_msg_2)
+
+			local driver_3_entry = "===\nCompleted\ndriver3\n\n"
+
+			dwsmq_enqueue(true, driver_1_entry .. driver_3_entry .. driver_2_entry)
+			dwsmq_enqueue(true, driver_1_entry .. driver_3_entry .. driver_2_entry)
+
+			popen_count = popen_count + 1
+			
+			local expected_error = string.format("DWS driver error(s):\n%s: %s\n\n%s: %s\n", driver_id_1, err_msg_1, driver_id_2, err_msg_2)
+			local ret, err = slurm_bb_setup(jobID, userID, groupID, "pool1", 1, job_script_name)
+			assert_bb_state_error(ret, err, expected_error, popen_count)
+			io.popen:clear()
+		end
+
+		it("during Proposal state in slurm_bb_setup()", function()
+			call_bb_setup_proposal_errors()
+		end)
 
 	end)
 

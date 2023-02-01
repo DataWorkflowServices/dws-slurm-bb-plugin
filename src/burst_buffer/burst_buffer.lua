@@ -241,6 +241,69 @@ function DWS:get_current_state()
 	return ret, status
 end
 
+function _parse_driver_statuses(text, iterator, status_list, status_info)
+	if iterator == nil then
+		iterator = text:gmatch("[^\n]+")
+	end
+
+	if status_list == nil then
+		status_list = {}
+	end
+
+	local line = iterator()
+	if line == nil  and status_info ~= nil then
+		table.insert(status_list, status_info)
+		return status_list
+	elseif line == nil then
+		return status_list
+	end
+
+	if line == "===" then
+		if status_info ~= nil then
+			table.insert(status_list, status_info)
+		end
+
+		status_info = {}
+		status_info["status"] = iterator()
+		status_info["driverID"] = iterator()
+		status_info["error"] = ""
+		return _parse_driver_statuses(text, iterator, status_list, status_info)
+	end
+
+	if status_info ~= nil then
+		status_info["error"] = status_info["error"] .. line .. "\n"
+		return _parse_driver_statuses(text, iterator, status_list, status_info)
+	end
+		
+	return status_list
+end
+
+-- DWS:get_driver_errors will collect driver errors from the Workflow resource
+-- with respect to the given state.
+function DWS:get_driver_errors(state)
+	local error_list = {}
+	local jsonpath = [[==={"\n"}{range .status.drivers[?(@.watchState=="]].. state ..[[")]}{@.status}{"\n"}{@.driverID}{"\n"}{@.error}{"\n===\n"}{end}]]
+	local ret, output = self:get_jsonpath(jsonpath)
+	if ret == false then
+		return ret, "", "could not get driver errors: " .. output
+	end
+
+	driver_statuses = _parse_driver_statuses(output)
+
+	errors = ""
+	for _, driver_status in ipairs(driver_statuses) do
+		if driver_status["status"] == "Error" then
+			if errors ~= "" then
+				errors = errors .. "\n"
+			end
+
+			errors = errors .. driver_status["driverID"] .. ": " .. driver_status["error"]
+		end
+	end
+
+	return true, errors
+end
+
 -- DWS:get_hurry will get the hurry flag of the Workflow resource.
 -- On success this returns true and a boolean for the value of the hurry flag.
 -- On failure this returns false and the output of the kubectl command.
@@ -273,7 +336,11 @@ function DWS:wait_for_status_complete(max_passes)
 		if status["desiredState"] == status["currentState"] and status["status"] == "Completed" then
 			return true, status
 		elseif status["status"] == "Error" then
-			return false, empty, string.format("Error in Workflow %s", self.name)
+			local ret, driver_errors, err = self:get_driver_errors(status["desiredState"])
+			if ret ~= true then
+				return ret, empty, err
+			end
+			return false, empty, "DWS driver error(s):\n" .. driver_errors
 		end
 		os.execute("sleep 1")
 		if max_passes > 0 then

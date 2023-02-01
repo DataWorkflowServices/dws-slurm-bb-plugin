@@ -46,7 +46,7 @@ def _(k8s, jobId):
 
 @when(parsers.parse('the Workflow status becomes {status:l}'))
 def _(slurmctld, jobId, status):
-    """the Workflow status is <status> before the job is canceled"""
+    """the Workflow status becomes <status>"""
     workflowStatus = slurmctld.get_workflow_status(jobId)
     assert workflowStatus["status"] == status
 
