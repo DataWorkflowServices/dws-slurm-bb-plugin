@@ -51,7 +51,7 @@ def pytest_bdd_apply_tag(tag, function):
         return None
 
 @given(parsers.parse('a job script:\n{script}'), target_fixture="script_path")
-def write_job_script(script):
+def _(script):
     """a job script: <script>"""
     path = "/jobs/" + secrets.token_hex(5) + "-job.sh"
     with open(path, "w") as file:
