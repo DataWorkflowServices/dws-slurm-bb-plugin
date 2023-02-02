@@ -14,8 +14,6 @@ RUN yum update -y && \
     install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && \
     pip install -r requirements.txt
 
-COPY src /tests
-
 RUN mkdir /reports
 
 FROM testbase AS test
@@ -27,5 +25,5 @@ CMD [ \
     "--junitxml=/reports/integration.junit.xml", \
     "--html=/reports/integration.html", \
     "--gherkin-terminal-reporter", \
-    "-v" \
+    "-v", "." \
 ]

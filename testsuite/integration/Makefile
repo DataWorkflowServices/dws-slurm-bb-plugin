@@ -39,19 +39,46 @@ setup-dws:
 	@{\
 		set -e ; \
 		cd ../submodules/dws ; \
-		docker buildx build -t local/dws-operator:test --cache-from="/tmp/.buildx-cache" --load . ; \
+		docker buildx build -t local/dws-operator:test --load . ; \
 		IMAGE_TAG_BASE=local/dws-operator VERSION=test KIND_CLUSTER=dws make kind-push deploy ; \
 		kubectl wait deployment --timeout=60s -n dws-operator-system dws-operator-controller-manager --for condition=Available=True ; \
 	}
 
+.PHONY: setup-dws-test-driver
+setup-dws-test-driver:
+	@{\
+		set -e ; \
+		cd ../submodules/dws-test-driver ; \
+		docker buildx build -t local/dws-test-driver-operator:test --load . ; \
+		IMAGE_TAG_BASE=local/dws-test-driver-operator VERSION=test KIND_CLUSTER=dws make kind-push deploy ; \
+		kubectl wait deployment --timeout=60s -n dws-test-operator-system dws-test-driver-controller-manager --for condition=Available=True ; \
+	}
+
 .PHONY: setup
-setup: setup-kind setup-dws
+setup: setup-kind setup-dws setup-dws-test-driver
 
 .PHONY: test
 test:
 	docker compose build
 	docker compose up
 
+.PHONY: debug
+debug:
+	echo "***** SLURMCTLD LOGS *****"
+	docker logs slurmctld
+	echo
+	echo "***** SLURM COMPUTE LOGS *****"
+	docker logs c1
+	echo
+	echo "***** KIND NODE *****"
+	kubectl describe node dws-control-plane dws-worker
+	echo
+	echo "***** DWS DEPLOYMENT *****"
+	kubectl describe deployment -n dws-operator-system dws-operator-controller-manager
+	echo
+	echo "***** DWS LOGS *****"
+	kubectl logs -n dws-operator-system deployment/dws-operator-controller-manager
+	
 .PHONY: reports
 reports:
 	mkdir reports

@@ -58,6 +58,9 @@ install_dependencies () {
   # Make sure the current context is set to dws
   kubectl config use-context kind-dws
 
+  # Create the slurm namespace. This will be the default location of dws-slurm-bb-plugin workflows
+  kubectl create namespace slurm
+
   # Install the cert-manager for the DWS webhook.
   kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.7.0/cert-manager.yaml
 
@@ -70,8 +73,9 @@ prep_kubeconfig () {
   set -e
   cp ~/.kube/config kubeconfig
   yq -i e '(.clusters | map(select(.name=="kind-dws")))[0].cluster.server |= "https://dws-control-plane:6443"' kubeconfig
-  yq -i e '.current-context |= "kind-dws"' kubeconfig
   chmod a+r kubeconfig
+  KUBECONFIG=kubeconfig kubectl config use-context kind-dws
+  KUBECONFIG=kubeconfig kubectl config set-context --current --namespace=slurm
 }
 
 teardown () {

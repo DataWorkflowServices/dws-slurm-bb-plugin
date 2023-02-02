@@ -48,3 +48,12 @@ testsuite/integration/jobs/slurm*.out
 # Kind files
 testsuite/integration/kubeconfig
 testsuite/integration/kind-config.yaml
+
+# Python files
+**/__pycache__/*
+
+# integration test reports
+testsuite/integration/reports/
+
+# IDE cache
+.vscode
