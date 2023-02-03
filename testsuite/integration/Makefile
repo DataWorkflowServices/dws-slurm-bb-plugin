@@ -88,7 +88,7 @@ reports:
 clean:
 	docker compose down || echo "Integration test container cleanup failed"
 	docker network disconnect slurm_default dws-control-plane || echo "Docker network cleanup failed"
-	cd slurm && docker compose down || echo "Slurm cleanup failed"
+	cd slurm && docker compose down --volumes || echo "Slurm cleanup failed"
 	source kind/kind.sh && teardown || echo "Kind cleanup failed"
 
 all: setup test
