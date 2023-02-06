@@ -957,7 +957,7 @@ describe("Slurm API", function()
 
 			local driver_3_entry = "===\nCompleted\ndriver3\n\n"
 
-			dwsmq_enqueue(true, driver_1_entry .. driver_3_entry .. driver_2_entry)
+			dwsmq_enqueue(true, "") -- kubectl_cache_home
 			dwsmq_enqueue(true, driver_1_entry .. driver_3_entry .. driver_2_entry)
 
 			popen_count = popen_count + 1

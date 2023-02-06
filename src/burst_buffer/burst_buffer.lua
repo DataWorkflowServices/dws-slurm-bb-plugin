@@ -282,7 +282,7 @@ end
 -- with respect to the given state.
 function DWS:get_driver_errors(state)
 	local error_list = {}
-	local jsonpath = [[==={"\n"}{range .status.drivers[?(@.watchState=="]].. state ..[[")]}{@.status}{"\n"}{@.driverID}{"\n"}{@.error}{"\n===\n"}{end}]]
+	local jsonpath = [[{range .status.drivers[?(@.watchState=="]].. state ..[[")]}==={"\n"}{@.status}{"\n"}{@.driverID}{"\n"}{@.error}{"\n"}{end}]]
 	local ret, output = self:get_jsonpath(jsonpath)
 	if ret == false then
 		return ret, "", "could not get driver errors: " .. output
