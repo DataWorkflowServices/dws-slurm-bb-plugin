@@ -932,7 +932,7 @@ describe("Slurm API", function()
 		call_bb_teardown()
 	end)
 
-	insulate("reports driver error(s)", function()
+	context("reports driver error(s)", function()
 		local assert_bb_state_error = function(ret, err, expected_error, popen_count)
 			assert.stub(io.popen).was_called(popen_calls)
 			io.popen:clear()
