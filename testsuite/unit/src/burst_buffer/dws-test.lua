@@ -403,23 +403,6 @@ describe("The dws library", function()
 			assert.is_equal(status["status"], "Completed")
 		end
 
-		-- Handle errors returned from DWS during state transition
-		local wait_for_state_errors = function(state)
-			local result_wanted = "desiredState=" .. state .. "\ncurrentState=" .. state .. "\nstatus=Completed\n"
-
-			dwsmq_enqueue(true, "") -- kubectl_cache_home
-			dwsmq_enqueue(true, result_wanted)
-			local done, status, err = workflow:wait_for_status_complete(60)
-
-			assert.stub(io.popen).was_called(2)
-			io.popen:clear()
-
-			assert.is_true(done, err)
-			assert.is_equal(status["desiredState"], state)
-			assert.is_equal(status["currentState"], state)
-			assert.is_equal(status["status"], "Completed")
-		end
-
 		-- Check that the resource's hurry flag is as desired.
 		local check_hurry = function(desired_hurry)
 			local result_wanted = "false"
