@@ -90,7 +90,7 @@ class Slurmctld:
     @retry(
         wait=wait_fixed(2),
         stop=stop_after_attempt(30),
-        retry=retry_if_result(lambda state: state not in ["COMPLETED", "FAILED", "CANCELLED"]),
+        retry=retry_if_result(lambda state: state[0] not in ["COMPLETED", "FAILED", "CANCELLED"]),
         retry_error_callback=lambda retry_state: retry_state.outcome.result()
     )
     def get_final_job_state(self, jobId):
@@ -109,6 +109,7 @@ class Slurmctld:
                 keyVal = prop.split("=")
                 assert len(keyVal) == 2, "Could not parse state from: " + out
                 if keyVal[0] == "JobState":
+                    print("JobState=" + keyVal[1])
                     return keyVal[1], out
         assert False, "Could not parse state from: " + out
 

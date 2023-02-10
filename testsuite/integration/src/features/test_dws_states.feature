@@ -55,7 +55,7 @@ Feature: Data Workflow Services State Progression
 
         When the job is run
         And a Workflow is created for the job
-        And the Workflow and job progress to the <workflowState> state
+        And the Workflow and job report errors at the <workflowState> state
         And the job is canceled
         Then the Workflow and job progress to the Teardown state
         And the job's system comment contains the following:
@@ -71,7 +71,7 @@ Feature: Data Workflow Services State Progression
             | PostRun       | 
             | DataOut       | 
 
-    # With the exception of PreRun, states will need to be cancelled with the
+    # With the exception of PreRun, states will need to be canceled with the
     # "--hurry" flag to transition to the Teardown state. If 
     # "Flags=TeardownFailure" is set in burst_buffer.conf, then all states will
     # transition to Teardown without needing to be canceled

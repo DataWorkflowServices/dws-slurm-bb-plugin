@@ -16,7 +16,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 Feature: Integration test environment
     Verify the integration test environment has been setup correctly
 
