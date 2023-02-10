@@ -16,7 +16,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 Feature: Integration test environment
     Verify the integration test environment has been setup correctly
 
@@ -35,7 +34,7 @@ Feature: Integration test environment
             srun -l /bin/hostname
             srun -l /bin/pwd
         When the job is run
-        Then the job is COMPLETED
+        Then the job state is COMPLETED
 
     Scenario: Kubernetes and slurm are connected
         Given the kubernetes cluster kube-system UID

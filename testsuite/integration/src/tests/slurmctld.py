@@ -29,6 +29,12 @@ from tenacity import *
 class JobSubmissionError(Exception):
     pass
 
+class JobCancelError(Exception):
+    pass
+
+class JobNotCompleteError(Exception):
+    pass
+
 class Slurmctld:
     def __init__(self):
         self.slurmctld = docker.from_env().containers.get("slurmctld")
@@ -44,25 +50,30 @@ class Slurmctld:
         return rc,str(out, 'utf-8')
     
     @retry(
-        wait=wait_fixed(6),
-        stop=stop_after_attempt(10),
+        wait=wait_fixed(2),
+        stop=stop_after_attempt(30),
         reraise=True
     )
-    def submit_job(self,scriptPath):
-        print("submit job")
+    def submit_job(self, scriptPath):
         # The --wait option could be used here. However, other tests need to
         # asynchronously track the job status
         cmd = f"sbatch --output={scriptPath}.out --error={scriptPath}.error.out {scriptPath}"
         rc, out = self.exec_run(cmd)
         if rc != 0:
-            print(str(rc), out)
             raise JobSubmissionError(out)
         jobId = int(out.split()[-1])
         return jobId, scriptPath + ".out", scriptPath + ".error.out"
 
+    def cancel_job(self, jobId, hurry_flag=False):
+        print("cancel job" + str(jobId))
+        cmd = "scancel --hurry %s" % str(jobId)
+        rc, out = self.exec_run(cmd)
+        if rc != 0:
+            raise JobCancelError(out)
+
     @retry(
-        wait=wait_fixed(6),
-        stop=stop_after_attempt(10),
+        wait=wait_fixed(2),
+        stop=stop_after_attempt(30),
         retry_error_callback=lambda retry_state: None
     )
     def remove_job_output(self, jobId, outputFilePath, errorFilePath):
@@ -77,12 +88,17 @@ class Slurmctld:
         os.remove(outputFilePath)
 
     @retry(
-        wait=wait_fixed(6),
-        stop=stop_after_attempt(10),
-        retry=retry_if_result(lambda state: state not in ["COMPLETED", "FAILED"]),
+        wait=wait_fixed(2),
+        stop=stop_after_attempt(30),
+        retry=retry_if_result(lambda state: state[0] not in ["COMPLETED", "FAILED", "CANCELLED"]),
         retry_error_callback=lambda retry_state: retry_state.outcome.result()
     )
     def get_final_job_state(self, jobId):
+        # When the job is finished, the workflow should not exist
+        rc = self.exec_run("scontrol show bbstat workflow " + str(jobId))
+        if rc == 0:
+            raise JobNotCompleteError()
+
         rc, out =self.exec_run("scontrol show job " + str(jobId))
         assert rc==0, "Could not get job state from Slurm:\n" + out
         job_prop_lines = out.split("\n")
@@ -93,6 +109,7 @@ class Slurmctld:
                 keyVal = prop.split("=")
                 assert len(keyVal) == 2, "Could not parse state from: " + out
                 if keyVal[0] == "JobState":
+                    print("JobState=" + keyVal[1])
                     return keyVal[1], out
         assert False, "Could not parse state from: " + out
 

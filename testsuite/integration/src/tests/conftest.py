@@ -52,7 +52,7 @@ def pytest_bdd_apply_tag(tag, function):
 
 @given(parsers.parse('a job script:\n{script}'), target_fixture="script_path")
 def _(script):
-    """a simple job script: <script>"""
+    """a job script: <script>"""
     path = "/jobs/" + secrets.token_hex(5) + "-job.sh"
     with open(path, "w") as file:
         file.write(script)
@@ -64,14 +64,6 @@ def _(script):
 @when('the job is run', target_fixture="jobId")
 def _(slurmctld, script_path):
     """the job is run."""
-    _,out = slurmctld.exec_run("sinfo -lNe")
-    print(out)
-
-    _,out = slurmctld.exec_run("scontrol show node")
-    print(out)
-
-    _,out = slurmctld.exec_run("kubectl describe deployment -n dws-operator-system dws-operator-controller-manager")
-    print(out)
 
     jobId, outputFilePath, errorFilePath = slurmctld.submit_job(script_path)
     print("submitted job: " + str(jobId))
@@ -81,9 +73,9 @@ def _(slurmctld, script_path):
     # remove the slurm output from the jobs folder
     slurmctld.remove_job_output(jobId, outputFilePath, errorFilePath)
 
-@then(parsers.parse('the job is {expectedJobState}'))
+@then(parsers.parse('the job state is {expectedJobState}'))
 def _(slurmctld, jobId, expectedJobState):
-    """the job completes successfully."""
+    """the job state is <expectedJobState>"""
     jobState, out = slurmctld.get_final_job_state(jobId)
 
     if expectedJobState == "COMPLETED" and jobState == "FAILED":

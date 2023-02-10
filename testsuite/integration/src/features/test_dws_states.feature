@@ -36,7 +36,6 @@ Feature: Data Workflow Services State Progression
 
         When the job is run
         And a Workflow is created for the job
-        #Then the job's temporary Workflow is not found
         Then the Workflow and job progress to the Proposal state
         And the Workflow and job progress to the Setup state
         And the Workflow and job progress to the DataIn state
@@ -44,74 +43,70 @@ Feature: Data Workflow Services State Progression
         And the Workflow and job progress to the PostRun state
         And the Workflow and job progress to the DataOut state
         And the Workflow and job progress to the Teardown state
-        And the job is COMPLETED
+        And the job state is COMPLETED
 
-    @todo
-    Scenario: The DWS-BB Plugin can handle DWS driver errors
+    # DWS does not allow spaces in key/value pairs in directives. To skirt around this
+    # constraint, the dws-test-driver replaces underscores ("_") in the message value with
+    # spaces. This ensures that the dws-slurm-plugin can handle whitespace in error messages
+    # It also makes it easier to check that the error is included in scontrol output.
+    Scenario Outline: The DWS-BB Plugin can handle DWS driver errors before being canceled
         Given a job script:
             #!/bin/bash
+            
+            #DW <workflowState> action=error message=TEST_ERROR
+            #DW Teardown action=wait
+            /bin/hostname
 
-            #DW <state> action=error message=TEST_ERROR
+        When the job is run
+        And a Workflow is created for the job
+        And the Workflow and job report errors at the <workflowState> state
+        And the job is canceled
+        Then the Workflow and job progress to the Teardown state
+        And the job's system comment contains the following:
+            TEST ERROR
+        
+        Examples:
+            # *** HEADER ***
+            | workflowState |
+            # *** VALUES ***
+            | Proposal      |
+            | Setup         |
+            | DataIn        |
+            | PostRun       | 
+            | DataOut       | 
+
+    # With the exception of PreRun, states will need to be canceled with the
+    # "--hurry" flag to transition to the Teardown state. If 
+    # "Flags=TeardownFailure" is set in burst_buffer.conf, then all states will
+    # transition to Teardown without needing to be canceled
+    Scenario Outline: The DWS-BB Plugin can handle DWS driver errors
+        Given a job script:
+            #!/bin/bash
+            
+            #DW <workflowState> action=error message=TEST_ERROR
             #DW Teardown action=wait
             /bin/hostname
 
         When the job is run
         And a Workflow is created for the job
         Then the Workflow and job progress to the Teardown state
-        And the job shows an error with message "TEST ERROR"
+        And the job's system comment contains the following:
+            TEST ERROR
         
         Examples:
             # *** HEADER ***
-            | state    |
+            | workflowState |
             # *** VALUES ***
-            | Proposal |
-            | Setup    |
-            | DataIn   |
-            | PreRun   |
-            | PostRun  |
-            | DataOut  |
+            | PreRun        |
 
-    @todo
-    Scenario: The DWS-BB Plugin can handle a DWS driver error during Teardown
+    Scenario: The DWS-BB Plugin can handle DWS driver errors during Teardown
         Given a job script:
             #!/bin/bash
-
+            
             #DW Teardown action=error message=TEST_ERROR
             /bin/hostname
 
         When the job is run
-        And a Workflow is created for the job
-        Then the job shows an error with message "TEST ERROR"
-
-    @todo
-    Scenario: The DWS-BB Plugin can cancel jobs
-        Given a job script:
-            #!/bin/bash
-
-            #DW <state> action=wait
-            #DW Teardown action=wait
-            /bin/hostname
-
-        When the job is run
-        And a Workflow is created for the job
-        And the Workflow and job progress to the <state> state
-        And the job is canceled with the hurry flag set to <hurry_flag>
-        Then the Workflow and job progress to the Teardown state
-        And the Workflow's hurry flag is set to <hurry_flag>
-
-        Examples:
-            # *** HEADER ***
-            | state    | hurry_flag |
-            # *** VALUES ***
-            | Proposal | false      |
-            | Setup    | false      |
-            | DataIn   | false      |
-            | PreRun   | false      |
-            | PostRun  | false      |
-            | DataOut  | false      |
-            | Proposal | true       |
-            | Setup    | true       |
-            | DataIn   | true       |
-            | PreRun   | true       |
-            | PostRun  | true       |
-            | DataOut  | true       |
+        Then the job's system comment contains the following:
+            TEST ERROR
+        And the workflow still exists

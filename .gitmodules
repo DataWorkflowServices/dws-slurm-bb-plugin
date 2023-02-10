@@ -1,7 +1,6 @@
 [submodule "testsuite/submodules/dws"]
 	path = testsuite/submodules/dws
 	url = https://github.com/HewlettPackard/dws.git
-	branch = master
 [submodule "testsuite/submodules/slurm-docker-cluster"]
 	path = testsuite/submodules/slurm-docker-cluster
 	url = git@github.com:DataWorkflowServices/slurm-docker-cluster.git
@@ -9,3 +8,4 @@
 [submodule "testsuite/submodules/dws-test-driver"]
 	path = testsuite/submodules/dws-test-driver
 	url = git@github.com:DataWorkflowServices/dws-test-driver.git
+	branch = main
