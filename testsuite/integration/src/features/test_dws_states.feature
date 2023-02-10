@@ -45,6 +45,10 @@ Feature: Data Workflow Services State Progression
         And the Workflow and job progress to the Teardown state
         And the job state is COMPLETED
 
+    # DWS does not allow spaces in key/value pairs in directives. To skirt around this
+    # constraint, the dws-test-driver replaces underscores ("_") in the message value with
+    # spaces. This ensures that the dws-slurm-plugin can handle whitespace in error messages
+    # It also makes it easier to check that the error is included in scontrol output.
     Scenario Outline: The DWS-BB Plugin can handle DWS driver errors before being canceled
         Given a job script:
             #!/bin/bash
