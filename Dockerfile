@@ -2,7 +2,7 @@ FROM ghcr.io/lunarmodules/busted:v2 AS testbase
 
 RUN apk add --no-cache make bash git python3 && \
     python3 -m ensurepip --upgrade && \
-    pip3 install --no-cache-dir openapi-schema-validator==0.3.4 pyyaml==6.0 && \
+    pip3 install --no-cache-dir openapi-schema-validator pyyaml && \
     luarocks install luacov && luarocks install luacov-multiple && luarocks install luacov-html
 
 COPY testsuite/submodules/dws /dws
