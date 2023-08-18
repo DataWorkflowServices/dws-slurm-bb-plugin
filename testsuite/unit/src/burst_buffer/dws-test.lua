@@ -1,5 +1,5 @@
 -- 
---  Copyright 2022 Hewlett Packard Enterprise Development LP
+--  Copyright 2022-2023 Hewlett Packard Enterprise Development LP
 --  Other additional copyright holders may be indicated within.
 -- 
 --  The entirety of this work is licensed under the Apache License,
@@ -47,7 +47,7 @@ local function verify_filled_template(workflow, wlmID, jobID, userID, groupID)
 	local wf_yaml = workflow.yaml
 	assert.is_not_nil(string.find(wf_yaml, "name: " .. workflow.name))
 	assert.is_not_nil(string.find(wf_yaml, [[wlmID: "]] .. wlmID .. [["]]))
-	assert.is_not_nil(string.find(wf_yaml, "jobID: " .. jobID))
+	assert.is_not_nil(string.find(wf_yaml, [[jobID: "]] .. jobID .. [["]]))
 	assert.is_not_nil(string.find(wf_yaml, "userID: " .. userID))
 	assert.is_not_nil(string.find(wf_yaml, "groupID: " .. groupID))
 	assert.is_not_nil(string.find(wf_yaml, "\n" .. LABEL_INDENT .. DEFAULT_LABEL_KEY .. ": " .. DEFAULT_LABEL_VAL .. "\n"))
@@ -170,7 +170,7 @@ describe("The dws library initializer", function()
 	before_each(function()
 		workflow_name = "check" .. math.random(1000)
 		workflow = get_workflow_obj(workflow_name)
-		wlmID = "5f239" .. math.random(1000)
+		wlmID = "BB WLM"
 		jobID = math.random(1000)
 		userID = math.random(1000)
 		groupID = math.random(1000)
@@ -268,7 +268,7 @@ describe("The dws library", function()
 		status_check_count = 3
 
 		workflow_name = "check" .. math.random(1000)
-		wlmID = "5f239" .. math.random(1000)
+		wlmID = "BB WLM"
 		jobID = math.random(1000)
 		userID = math.random(1000)
 		groupID = math.random(1000)
