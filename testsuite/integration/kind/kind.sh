@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 #
-# Copyright 2022 Hewlett Packard Enterprise Development LP
+# Copyright 2022-2023 Hewlett Packard Enterprise Development LP
 # Other additional copyright holders may be indicated within.
 #
 # The entirety of this work is licensed under the Apache License,
@@ -27,29 +27,18 @@ generate_cluster () {
   if ! [[ -f $CONFIG ]]
   then
     # System Local Controllers (SLC)
-    SLCCONFIG=$(cat << EOF
-
-    kubeadmConfigPatches:
-    - |
-      kind: JoinConfiguration
-      nodeRegistration:
-        kubeletExtraArgs:
-          node-labels: cray.wlm.manager=true
-EOF
-  )
-
   cat > $CONFIG <<EOF
   kind: Cluster
   apiVersion: kind.x-k8s.io/v1alpha4
   name: dws
   nodes:
   - role: control-plane
-  - role: worker $SLCCONFIG
+  - role: worker
 EOF
   fi
 
   # Create a KIND cluster to run DWS operator.
-  kind create cluster --wait 60s --image=kindest/node:v1.25.2 --config $CONFIG
+  kind create cluster --wait 60s --image=kindest/node:v1.27.2 --config $CONFIG
 }
 
 install_dependencies () {
@@ -62,7 +51,7 @@ install_dependencies () {
   kubectl create namespace slurm
 
   # Install the cert-manager for the DWS webhook.
-  kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.7.0/cert-manager.yaml
+  kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.11.1/cert-manager.yaml
 
   kubectl wait deployment --timeout=60s -n cert-manager cert-manager --for condition=Available=True
   kubectl wait deployment --timeout=60s -n cert-manager cert-manager-cainjector --for condition=Available=True

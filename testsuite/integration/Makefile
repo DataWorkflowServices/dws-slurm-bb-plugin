@@ -42,6 +42,7 @@ setup-dws:
 		docker buildx build -t local/dws-operator:test --load . ; \
 		IMAGE_TAG_BASE=local/dws-operator VERSION=test KIND_CLUSTER=dws make kind-push deploy ; \
 		kubectl wait deployment --timeout=60s -n dws-operator-system dws-operator-controller-manager --for condition=Available=True ; \
+		kubectl wait deployment --timeout=60s -n dws-operator-system dws-operator-webhook --for condition=Available=True ; \
 	}
 
 .PHONY: setup-dws-test-driver
