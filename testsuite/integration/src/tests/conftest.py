@@ -1,5 +1,5 @@
 #
-# Copyright 2022 Hewlett Packard Enterprise Development LP
+# Copyright 2022-2023 Hewlett Packard Enterprise Development LP
 # Other additional copyright holders may be indicated within.
 #
 # The entirety of this work is licensed under the Apache License,
@@ -53,7 +53,7 @@ def pytest_bdd_apply_tag(tag, function):
 @given(parsers.parse('a job script:\n{script}'), target_fixture="script_path")
 def _(script):
     """a job script: <script>"""
-    path = "/jobs/" + secrets.token_hex(5) + "-job.sh"
+    path = "/jobs/inttest-" + secrets.token_hex(5) + "-job.sh"
     with open(path, "w") as file:
         file.write(script)
 
