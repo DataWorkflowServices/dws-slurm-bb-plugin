@@ -18,6 +18,9 @@
 #
 
 #NOCACHE= --no-cache
+
+# Uncomment PROGRESS to see the Busted unit test output when run from the
+# Docker env:
 #PROGRESS= --progress plain
 
 test: $(find src -type f) $(find testsuite/unit/src -type f) Dockerfile
