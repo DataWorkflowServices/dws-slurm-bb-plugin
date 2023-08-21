@@ -1,5 +1,5 @@
 -- 
---  Copyright 2022 Hewlett Packard Enterprise Development LP
+--  Copyright 2022-2023 Hewlett Packard Enterprise Development LP
 --  Other additional copyright holders may be indicated within.
 -- 
 --  The entirety of this work is licensed under the Apache License,
@@ -118,7 +118,7 @@ end
 -- resource with keywords that must be replaced by the caller.
 function DWS:template()
 	return [[
-apiVersion: dws.cray.hpe.com/v1alpha1
+apiVersion: dws.cray.hpe.com/v1alpha2
 kind: Workflow
 metadata:
   name: WF_NAME
@@ -128,7 +128,7 @@ spec:
   desiredState: "Proposal"
   DWDIRECTIVES
   wlmID: "WLMID"
-  jobID: JOBID
+  jobID: "JOBID"
   userID: USERID
   groupID: GROUPID
 ]]
@@ -629,8 +629,13 @@ function slurm_bb_job_teardown(job_id, job_script, hurry)
 	local workflow = DWS(make_workflow_name(job_id))
 	local done, err = workflow:set_workflow_state_and_wait("Teardown", hurry_flag)
 	if done == false then
-		slurm.log_error("%s: slurm_bb_job_teardown(), workflow=%s: %s", lua_script_name, workflow.name, err)
-		return slurm.ERROR, err
+		if string.find(err, [["]] .. workflow.name .. [[" not found]]) then
+			-- It's already gone, and that's what we wanted anyway.
+			return slurm.SUCCESS
+		else
+			slurm.log_error("%s: slurm_bb_job_teardown(), workflow=%s: %s", lua_script_name, workflow.name, err)
+			return slurm.ERROR, err
+		end
 	end
 
 	done, err = workflow:delete()
