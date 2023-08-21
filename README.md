@@ -44,13 +44,13 @@ Begin by setting up the test environment.  This will start KIND to create a k8s 
 Note: this is a minimalist Slurm environment and it does not support all Slurm functionality.
 
 ```console
-$ make -C testsuite/integration setup
+make -C testsuite/integration setup
 ```
 
 Enter the `slurmctld` container to use Slurm's commands.  Jobs must be launched by the `slurm` user.
 
 ```console
-$ docker exec -it slurmctld bash
+docker exec -it slurmctld bash
 
 [root@slurmctld jobs]# su slurm
 bash-4.4$ cd /jobs
@@ -65,7 +65,7 @@ The Slurm `sacct` command, and certain others, will not work in this minimalist 
 To shutdown and cleanup the entire test environment, use the `clean` target in the makefile:
 
 ```console
-$ make -C testsuite/integration clean
+make -C testsuite/integration clean
 ```
 
 ### Simple playground exercise #1
@@ -91,13 +91,13 @@ bash-4.4$ sbatch test-bb.sh
 You can watch the Workflow resource appear and proceed through the states to DataOut, where it will pause with a state of DriverWait:
 
 ```console
-$ kubectl get workflow -wA
+kubectl get workflow -wA
 ```
 
 When the Workflow is in DriverWait, you can release it by marking it as completed.  In this case, my job ID is `12`, so the Workflow resource we're editing is `bb12`.  The paths specified in this patch refer to index 0, the first (and only) `#DW` directive in our job script.
 
 ```console
-$ kubectl patch workflow -n slurm bb12 --type=json -p '[{"op":"replace", "path":"/status/drivers/0/status", "value": "Completed"}, {"op":"replace", "path":"/status/drivers/0/completed", "value": true}]'
+kubectl patch workflow -n slurm bb12 --type=json -p '[{"op":"replace", "path":"/status/drivers/0/status", "value": "Completed"}, {"op":"replace", "path":"/status/drivers/0/completed", "value": true}]'
 ```
 
 You can then watch the Workflow resource proceed to Teardown state, after which the burst_buffer.lua teardown function will delete the resource.
@@ -126,24 +126,24 @@ Watch the workflow with `kubectl get workflow -wA` as shown above.
 When the workflow is in DataOut state with a status of `TransientCondition`, you can view the error:
 
 ```console
-$ kubectl get workflow -n slurm bb3 -o yaml
+kubectl get workflow -n slurm bb3 -o yaml
 ```
 
 Now clear the error and mark the state as complete:
 
 ```console
-$ kubectl patch workflow -n slurm bb3 --type=json -p '[{"op":"replace", "path":"/status/drivers/0/status", "value": "Completed"}, {"op":"replace", "path":"/status/drivers/0/completed", "value": true}, {"op":"remove", "path":"/status/drivers/0/error"}]'
+kubectl patch workflow -n slurm bb3 --type=json -p '[{"op":"replace", "path":"/status/drivers/0/status", "value": "Completed"}, {"op":"replace", "path":"/status/drivers/0/completed", "value": true}, {"op":"remove", "path":"/status/drivers/0/error"}]'
 ```
 
 Again, we can view the workflow:
 
 ```console
-$ kubectl get workflow -n slurm bb3 -o yaml
+kubectl get workflow -n slurm bb3 -o yaml
 ```
 
 The workflow is now in Teardown with a status of DriverWait.  Release it by marking the state as complete.  This time the paths in this patch refer to index 1, the second `#DW` directive in our job script.
 
 ```console
-$ kubectl patch workflow -n slurm bb3 --type=json -p '[{"op":"replace", "path":"/status/drivers/1/status", "value": "Completed"}, {"op":"replace", "path":"/status/drivers/1/completed", "value": true}]'
+kubectl patch workflow -n slurm bb3 --type=json -p '[{"op":"replace", "path":"/status/drivers/1/status", "value": "Completed"}, {"op":"replace", "path":"/status/drivers/1/completed", "value": true}]'
 ```
 
