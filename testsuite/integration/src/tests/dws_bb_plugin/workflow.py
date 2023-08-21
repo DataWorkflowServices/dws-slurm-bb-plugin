@@ -1,5 +1,5 @@
 #
-# Copyright 2022 Hewlett Packard Enterprise Development LP
+# Copyright 2022-2023 Hewlett Packard Enterprise Development LP
 # Other additional copyright holders may be indicated within.
 #
 # The entirety of this work is licensed under the Apache License,
@@ -22,7 +22,7 @@ from tenacity import *
 
 class WorkflowWaitError(Exception):
     def __init__(self, workflowName, description):
-        super().__init__("TIMED OUT WAITNIGN FOR: " + description + " for workflow[" + workflowName + "]")
+        super().__init__("TIMED OUT WAITING FOR: " + description + " for workflow[" + workflowName + "]")
 
 class Workflow:
     def __init__(self, k8s, jobId):
@@ -30,6 +30,7 @@ class Workflow:
         self.k8s = k8s
         self.jobId = jobId
         self._data = None
+        self._api_version = "v1alpha2"
 
     @property
     def name(self):
@@ -48,7 +49,7 @@ class Workflow:
     )
     def _get_data(self):
         workflowData = self.k8s.CustomObjectsApi().get_namespaced_custom_object(
-            "dws.cray.hpe.com", "v1alpha1", "slurm", "workflows", self.name
+            "dws.cray.hpe.com", self._api_version, "slurm", "workflows", self.name
         )
 
         return workflowData
@@ -74,10 +75,10 @@ class Workflow:
             }
         }
         self.k8s.CustomObjectsApi().patch_namespaced_custom_object(
-            "dws.cray.hpe.com", "v1alpha1", "slurm", "workflows", self.name, patchData
+            "dws.cray.hpe.com", self._api_version, "slurm", "workflows", self.name, patchData
         )
         
     def delete(self):
         self.k8s.CustomObjectsApi().delete_namespaced_custom_object(
-            "dws.cray.hpe.com", "v1alpha1", "slurm", "workflows", self.name
+            "dws.cray.hpe.com", self._api_version, "slurm", "workflows", self.name
         )
