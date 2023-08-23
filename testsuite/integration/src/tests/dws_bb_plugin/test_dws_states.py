@@ -1,5 +1,5 @@
 #
-# Copyright 2022 Hewlett Packard Enterprise Development LP
+# Copyright 2022-2023 Hewlett Packard Enterprise Development LP
 # Other additional copyright holders may be indicated within.
 #
 # The entirety of this work is licensed under the Apache License,
@@ -18,31 +18,32 @@
 #
 
 import time
-from .workflow import Workflow
+import re
 from pytest_bdd import (
-    given,
     parsers,
     scenarios,
     then,
     when,
 )
+from kubernetes import client as k8sclient
+from .workflow import Workflow
 
-"""Data Workflow Services State Progression feature tests."""
+# Data Workflow Services State Progression feature tests.
 scenarios("test_dws_states.feature")
 
-@when('a Workflow is created for the job')
+@then('a Workflow has been created for the job')
 @then('the workflow still exists')
 def _(k8s, jobId):
-    """a Workflow is created for the job."""
+    """a Workflow has been created for the job."""
     workflow = Workflow(k8s, jobId)
-    assert workflow.data != None, "Workflow for Job: " + str(jobId) + " not found"
-    
+    assert workflow.data is not None, "Workflow for Job: " + str(jobId) + " not found"
+
     yield
 
     # attempt to delete workflow if it still exists
     try:
         workflow.delete()
-    except:
+    except k8sclient.exceptions.ApiException:
         pass
 
 @when(parsers.parse('the Workflow status becomes {status:l}'))
@@ -51,11 +52,12 @@ def _(slurmctld, jobId, status):
     workflowStatus = slurmctld.get_workflow_status(jobId)
     assert workflowStatus["status"] == status
 
-@when('the job is canceled')
+@then('the job is canceled')
 def _(slurmctld, jobId):
     """the job is canceled"""
     time.sleep(2) # Sleep long enough for bb plugin to poll workflow once or twice
     slurmctld.cancel_job(jobId, False)
+    time.sleep(2) # Sleep long enough for the workflow to be deleted
 
 def verify_job_status(slurmctld, jobId, state, status):
     jobStatus = slurmctld.get_workflow_status(jobId)
@@ -71,7 +73,7 @@ def _(k8s, slurmctld, jobId, state):
 
     workflow = Workflow(k8s, jobId)
     workflow.wait_until(
-        "the state the workflow is transitioning to",
+        f"the workflow transitions to {state}/{expectedStatus}",
         lambda wf: wf.data["status"]["state"] == state and wf.data["status"]["status"] == expectedStatus
     )
     print("job %s progressed to state %s" % (str(jobId),state))
@@ -81,31 +83,89 @@ def _(k8s, slurmctld, jobId, state):
     # Set driver status to completed so the workflow can progress to the next state
     foundPendingDriverStatus = False
     for driverStatus in workflow.data["status"]["drivers"]:
-        if driverStatus["driverID"] == "tester" and state in driverStatus["watchState"] and driverStatus["status"] == "Pending":
-            print("updating job %s to complete state %s" % (str(jobId), state))
+        if driverStatus["driverID"] == "tester" and driverStatus["watchState"] == state and driverStatus["status"] == "Pending":
+            print("updating workflow %s to complete state %s" % (str(jobId), state))
             driverStatus["completed"] = True
             driverStatus["status"] = "Completed"
             foundPendingDriverStatus = True
+            break
 
-    assert foundPendingDriverStatus, "Driver not found with \"Pending\" status" 
+    assert foundPendingDriverStatus, "Driver not found with \"Pending\" status"
     workflow.save_driver_statuses()
 
-@when(parsers.parse('the Workflow and job report errors at the {state:l} state'))
+@then(parsers.parse('the Workflow error is cleared from the {state:l} state'))
+def _(k8s, slurmctld, jobId, state):
+    """the Workflow error is cleared from the <state> state."""
+
+    workflow = Workflow(k8s, jobId)
+
+    # Set driver status to completed so the workflow can progress to the next state
+    foundPendingDriverStatus = False
+    for driverStatus in workflow.data["status"]["drivers"]:
+        if driverStatus["driverID"] == "tester" and driverStatus["watchState"] == state and driverStatus["status"] == "Error":
+            print(f"updating workflow %s to complete state %s" % (str(jobId), state))
+            driverStatus["completed"] = True
+            driverStatus["status"] = "Completed"
+            # The DWS webhook requires that the error message be cleared as well.
+            del driverStatus["error"]
+            foundPendingDriverStatus = True
+            break
+
+    assert foundPendingDriverStatus, "Driver not found with \"Error\" status"
+    workflow.save_driver_statuses()
+
+def driver_state_check(workflow, state, expected_status):
+    found_it = False
+    print(f"check drivers for state {state} with status {expected_status}")
+    for driver in workflow.data["status"]["drivers"]:
+        if driver["driverID"] == "tester" and driver["watchState"] == state:
+            if driver["status"] == expected_status:
+                print(f"found driver state {state} with {expected_status}")
+                found_it = True
+            else:
+                print(f"found driver state {state}/{driver['status']}")
+            break
+    return found_it
+
+@then(parsers.parse('the Workflow and job report fatal errors at the {state:l} state'))
 def _(k8s, slurmctld, jobId, state):
     """the Workflow and job report errors at the <state> state."""
 
-    expectedStatus = "Error"
+    expected_status = "Error"
+
+    def driver_check(workflow):
+        return driver_state_check(workflow, state, expected_status)
 
     workflow = Workflow(k8s, jobId)
     workflow.wait_until(
-        "the state the workflow is transitioning to",
-        lambda wf: wf.data["status"]["state"] == state and wf.data["status"]["status"] == expectedStatus
+        f"the workflow {state} state shows a status of {expected_status}",
+        lambda wf: driver_check(wf) is True
     )
-    print("job %s progressed to state %s" % (str(jobId),state))
 
-    verify_job_status(slurmctld, jobId, state, expectedStatus)
+    verify_job_status(slurmctld, jobId, state, expected_status)
 
-@then(parsers.parse("the job's system comment contains the following:\n{message}"))
-def _(slurmctld, jobId, message):
-    _,out = slurmctld.get_final_job_state(jobId)
-    assert message in out
+@then(parsers.parse('the Workflow reports a fatal error in the {state:l} state'))
+def _(k8s, slurmctld, jobId, state):
+    """the Workflow reports a fatal error in the <state> state."""
+
+    expected_status = "Error"
+
+    def driver_check(workflow):
+        return driver_state_check(workflow, state, expected_status)
+
+    workflow = Workflow(k8s, jobId)
+    workflow.wait_until(
+        f"the workflow {state} state shows a status of {expected_status}",
+        lambda wf: driver_check(wf) is True
+    )
+
+@then(parsers.parse("the job's {disposition:l} system comment contains the following:\n{message}"))
+def _(slurmctld, jobId, disposition, message):
+    assert disposition in ["final", "intermediate"], f"unknown disposition: {disposition}"
+    must_be_gone = True if disposition == "final" else False
+    _,out = slurmctld.get_final_job_state(jobId, must_be_gone)
+    m = re.search(r'\n\s+SystemComment=(.*)\n\s+StdErr=', out, re.DOTALL)
+    assert m is not None, f"Could not find SystemComment in job state from Slurm\n{out}"
+    if message in m.group(1):
+        print(f"Found \"{message}\" in SystemComment")
+    assert message in m.group(1)

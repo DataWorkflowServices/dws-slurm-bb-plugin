@@ -18,19 +18,18 @@
 #
 
 import os
-import pytest
 import secrets
 import warnings
+import pytest
 
-from .slurmctld import Slurmctld
 from kubernetes import client, config
 from pytest_bdd import (
     given,
-    scenarios,
     parsers,
     then,
     when,
 )
+from .slurmctld import Slurmctld
 
 @pytest.fixture
 def k8s():
@@ -54,7 +53,7 @@ def pytest_bdd_apply_tag(tag, function):
 def _(script):
     """a job script: <script>"""
     path = "/jobs/inttest-" + secrets.token_hex(5) + "-job.sh"
-    with open(path, "w") as file:
+    with open(path, "w", encoding="utf-8") as file:
         file.write(script)
 
     yield path
@@ -87,4 +86,3 @@ def _(slurmctld, jobId, expectedJobState):
         return
 
     assert jobState == expectedJobState, "Unexpected Job State: " + jobState + "\n" + out
-
