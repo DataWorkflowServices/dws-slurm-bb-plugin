@@ -49,11 +49,6 @@ class Slurmctld:
         )
         return rc,str(out, 'utf-8')
     
-    #@retry(
-    #    wait=wait_fixed(2),
-    #    stop=stop_after_attempt(30),
-    #    reraise=True
-    #)
     def submit_job(self, scriptPath):
         # The --wait option could be used here. However, other tests need to
         # asynchronously track the job status
