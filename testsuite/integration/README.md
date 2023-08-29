@@ -15,7 +15,7 @@ make setup
 ```
 
 Build a version of the integration test container using only the `testbase`
-stage, so it has the tests but doesn't automatically run the tests:
+stage, so it has the test environment but doesn't automatically run the tests:
 
 ```console
 docker build -t local/integration-test:test --target testbase --no-cache .

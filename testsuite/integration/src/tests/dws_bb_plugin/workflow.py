@@ -17,7 +17,7 @@
 # limitations under the License.
 #
 
-from kubernetes import client, config
+from kubernetes import config
 from tenacity import *
 
 class WorkflowWaitError(Exception):
@@ -38,7 +38,7 @@ class Workflow:
 
     @property
     def data(self):
-        if self._data == None:
+        if self._data is None:
             self._data = self._get_data()
         return self._data
 
@@ -67,7 +67,7 @@ class Workflow:
             raise WorkflowWaitError(self.name, description)
         print("ready")
         self._data = wf.data
-    
+
     def save_driver_statuses(self):
         patchData = {
             "status": {
@@ -77,7 +77,7 @@ class Workflow:
         self.k8s.CustomObjectsApi().patch_namespaced_custom_object(
             "dws.cray.hpe.com", self._api_version, "slurm", "workflows", self.name, patchData
         )
-        
+
     def delete(self):
         self.k8s.CustomObjectsApi().delete_namespaced_custom_object(
             "dws.cray.hpe.com", self._api_version, "slurm", "workflows", self.name

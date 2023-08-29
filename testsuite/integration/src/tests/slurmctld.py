@@ -1,5 +1,5 @@
 #
-# Copyright 2022 Hewlett Packard Enterprise Development LP
+# Copyright 2022-2023 Hewlett Packard Enterprise Development LP
 # Other additional copyright holders may be indicated within.
 #
 # The entirety of this work is licensed under the Apache License,
@@ -17,15 +17,15 @@
 # limitations under the License.
 #
 
-import docker
 import os
-import warnings
+import time
+import docker
 from tenacity import *
 
 # Submitting jobs can fail, occasionally, when the DWS webhook rejects the
 # mutating webhook connection. This has only been observed using the
 # directive rules included with  the dws-test-driver in a local kind
-# environment. 
+# environment.
 class JobSubmissionError(Exception):
     pass
 
@@ -49,11 +49,6 @@ class Slurmctld:
         )
         return rc,str(out, 'utf-8')
     
-    @retry(
-        wait=wait_fixed(2),
-        stop=stop_after_attempt(30),
-        reraise=True
-    )
     def submit_job(self, scriptPath):
         # The --wait option could be used here. However, other tests need to
         # asynchronously track the job status
@@ -71,11 +66,6 @@ class Slurmctld:
         if rc != 0:
             raise JobCancelError(out)
 
-    @retry(
-        wait=wait_fixed(2),
-        stop=stop_after_attempt(30),
-        retry_error_callback=lambda retry_state: None
-    )
     def remove_job_output(self, jobId, outputFilePath, errorFilePath):
         """
         The creation of the job's output file will sometimes lag behind the
@@ -83,9 +73,24 @@ class Slurmctld:
         don't raise a test error.
         """
         if os.path.exists(errorFilePath):
-            with open(errorFilePath, "r") as errorFile: print(errorFile.read())
+            with open(errorFilePath, "r", encoding="utf-8") as errorFile:
+                print(errorFile.read())
             os.remove(errorFilePath)
-        os.remove(outputFilePath)
+        if os.path.exists(outputFilePath):
+            os.remove(outputFilePath)
+
+    @retry(
+        wait=wait_fixed(2),
+        stop=stop_after_attempt(30)
+    )
+    def wait_until_workflow_is_gone(self, jobId):
+        _, out = self.exec_run("scontrol show bbstat workflow " + str(jobId))
+        # We'd prefer to check that rc==0, but the scontrol command does not
+        # exit non-zero when slurm_bb_get_status() in burst_buffer.lua returns
+        # slurm.ERROR.
+        if 'Error running slurm_bb_get_status' not in out:
+            print(f"Workflow {jobId} still exists: " + out)
+            raise JobNotCompleteError()
 
     @retry(
         wait=wait_fixed(2),
@@ -93,14 +98,16 @@ class Slurmctld:
         retry=retry_if_result(lambda state: state[0] not in ["COMPLETED", "FAILED", "CANCELLED"]),
         retry_error_callback=lambda retry_state: retry_state.outcome.result()
     )
-    def get_final_job_state(self, jobId):
-        # When the job is finished, the workflow should not exist
-        rc = self.exec_run("scontrol show bbstat workflow " + str(jobId))
-        if rc == 0:
-            raise JobNotCompleteError()
+    def get_final_job_state(self, jobId, must_be_gone=True):
+        # When the job is finished, the workflow should not exist.
+        if must_be_gone:
+            self.wait_until_workflow_is_gone(jobId)
+        else:
+            time.sleep(5) # wait for workflow info to be transferred to the job
 
-        rc, out =self.exec_run("scontrol show job " + str(jobId))
+        rc, out = self.exec_run("scontrol show job " + str(jobId))
         assert rc==0, "Could not get job state from Slurm:\n" + out
+
         job_prop_lines = out.split("\n")
         assert len(job_prop_lines) >= 4, "Could not find job: " + jobId + "\n" + out
         for job_prop_line in job_prop_lines:
@@ -115,7 +122,11 @@ class Slurmctld:
 
     def get_workflow_status(self, jobId):
         rc, out = self.exec_run("scontrol show bbstat workflow " + str(jobId))
-        assert rc ==0, "Could not get job status from Slurm:\n" + out
+        assert rc == 0, "Could not get job status from Slurm:\n" + out
+        # This next check is because the scontrol command does not exit non-zero
+        # when slurm_bb_get_status() in burst_buffer.lua returns slurm.ERROR.
+        assert 'Error running slurm_bb_get_status' not in out, f"Could not find workflow {jobId}:\n" + out
+
         status = {}
         properties = out.split()
         for prop in properties:
