@@ -1,5 +1,5 @@
 #
-# Copyright 2022 Hewlett Packard Enterprise Development LP
+# Copyright 2022-2023 Hewlett Packard Enterprise Development LP
 # Other additional copyright holders may be indicated within.
 #
 # The entirety of this work is licensed under the Apache License,
@@ -41,8 +41,8 @@ setup-dws:
 		cd ../submodules/dws ; \
 		docker buildx build -t local/dws-operator:test --load . ; \
 		IMAGE_TAG_BASE=local/dws-operator VERSION=test KIND_CLUSTER=dws make kind-push deploy ; \
-		kubectl wait deployment --timeout=60s -n dws-operator-system dws-operator-controller-manager --for condition=Available=True ; \
-		kubectl wait deployment --timeout=60s -n dws-operator-system dws-operator-webhook --for condition=Available=True ; \
+		kubectl wait deployment --timeout=120s -n dws-operator-system dws-operator-controller-manager --for condition=Available=True ; \
+		kubectl wait deployment --timeout=120s -n dws-operator-system dws-operator-webhook --for condition=Available=True ; \
 	}
 
 .PHONY: setup-dws-test-driver

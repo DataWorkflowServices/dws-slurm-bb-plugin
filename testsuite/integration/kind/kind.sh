@@ -50,8 +50,18 @@ install_dependencies () {
   # Create the slurm namespace. This will be the default location of dws-slurm-bb-plugin workflows
   kubectl create namespace slurm
 
+  # Pull cert-manager into the local cache and push into KIND.  Sometimes
+  # the KIND env cannot pull it from upstream.
+  CERTVER=v1.11.1
+  for part in controller webhook cainjector
+  do
+      image=quay.io/jetstack/cert-manager-$part:$CERTVER
+      docker pull $image
+      kind load docker-image --name=dws $image
+  done
+
   # Install the cert-manager for the DWS webhook.
-  kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.11.1/cert-manager.yaml
+  kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/$CERTVER/cert-manager.yaml
 
   kubectl wait deployment --timeout=60s -n cert-manager cert-manager --for condition=Available=True
   kubectl wait deployment --timeout=60s -n cert-manager cert-manager-cainjector --for condition=Available=True
