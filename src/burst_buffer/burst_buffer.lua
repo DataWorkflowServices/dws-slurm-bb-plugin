@@ -844,10 +844,20 @@ function slurm_bb_get_status(...)
 	local args = {...}
 	args.n = select("#", ...)
 
+	local found_jid = false
+	local jid = 0
 	if args.n == 2 and args[1] == "workflow" then
+		-- Slurm 22.05
+		jid = args[2]
+		found_jid = true
+	elseif args.n == 4 and args[3] == "workflow" then
+		-- Slurm 23.02
+		jid = args[4]
+		found_jid = true
+	end
+	if found_jid == true then
 		local done = false
 		local status = {}
-		local jid = args[2]
 		if string.find(jid, "^%d+$") == nil then
 			msg = "A job ID must contain only digits."
 		else
