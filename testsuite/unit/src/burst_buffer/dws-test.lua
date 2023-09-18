@@ -234,7 +234,7 @@ describe("The dws library", function()
 	end
 
 	local apply_workflow = function()
-		local result_wanted = "workflow.dws.cray.hpe.com/" .. workflow_name .. " created\n"
+		local result_wanted = "workflow.dataworkflowservices.github.io/" .. workflow_name .. " created\n"
 
 		dwsmq_enqueue(true, "") -- kubectl_cache_home
 		dwsmq_enqueue(true, result_wanted)
@@ -250,7 +250,7 @@ describe("The dws library", function()
 
 	local delete_workflow = function()
 		-- Delete the resource.
-		local result_wanted = 'workflow.dws.cray.hpe.com "' .. workflow_name .. '" deleted\n'
+		local result_wanted = 'workflow.dataworkflowservices.github.io "' .. workflow_name .. '" deleted\n'
 
 		dwsmq_enqueue(true, "") -- kubectl_cache_home
 		dwsmq_enqueue(true, result_wanted)
@@ -363,7 +363,7 @@ describe("The dws library", function()
 		-- the hurry flag on the state, if indicated.
 		local set_desired_state = function(new_state, hurry)
 			local ret_wanted = true
-			local result_wanted = "workflow.dws.cray.hpe.com/" .. workflow_name .. " patched\n"
+			local result_wanted = "workflow.dataworkflowservices.github.io/" .. workflow_name .. " patched\n"
 
 			if skip_state == true then
 				result_wanted = 'Error from server (Spec.DesiredState: Invalid value: "' .. new_state .. '": states cannot be skipped): admission webhook "vworkflow.kb.io" denied the request: Spec.DesiredState: Invalid value: "' .. new_state .. '": states cannot be skipped\n'
@@ -477,7 +477,7 @@ describe("The dws library", function()
 
 			local new_state = "Setup"
 
-			local set_result_wanted = "workflow.dws.cray.hpe.com/" .. workflow_name .. " patched\n"
+			local set_result_wanted = "workflow.dataworkflowservices.github.io/" .. workflow_name .. " patched\n"
 			local wait_result_wanted = "desiredState=" .. new_state .. "\ncurrentState=" .. new_state .. "\nstatus=Completed\n"
 
 			dwsmq_enqueue(true, "") -- kubectl_cache_home
@@ -654,7 +654,7 @@ describe("Burst buffer helpers", function()
 
 		after_each(function()
 			if resource_exists and expect_exists then
-				local result_wanted = 'workflow.dws.cray.hpe.com "' .. workflow_name .. '" deleted\n'
+				local result_wanted = 'workflow.dataworkflowservices.github.io "' .. workflow_name .. '" deleted\n'
 
 				dwsmq_reset()
 				dwsmq_enqueue(true, "") -- kubectl_cache_home
@@ -674,7 +674,7 @@ describe("Burst buffer helpers", function()
 		end)
 
 		local create_workflow = function(labels)
-			local result_wanted = "workflow.dws.cray.hpe.com/" .. workflow_name .. " created\n"
+			local result_wanted = "workflow.dataworkflowservices.github.io/" .. workflow_name .. " created\n"
 
 			dwsmq_enqueue(true, "") -- kubectl_cache_home
 			dwsmq_enqueue(true, result_wanted)
@@ -823,7 +823,7 @@ describe("Slurm API", function()
 	end)
 
 	local mock_popen_calls = function(state, status, k8s_cmd_result)
-		local k8s_cmd_result = k8s_cmd_result or "workflow.dws.cray.hpe.com/" .. workflow_name .. " patched\n"
+		local k8s_cmd_result = k8s_cmd_result or "workflow.dataworkflowservices.github.io/" .. workflow_name .. " patched\n"
 		local state_result = "desiredState=".. state .."\ncurrentState=".. state .."\nstatus=".. status .."\n"
 		dwsmq_enqueue(true, "") -- kubectl_cache_home
 		dwsmq_enqueue(true, k8s_cmd_result)
@@ -844,7 +844,7 @@ describe("Slurm API", function()
 		local job_script = "#!/bin/bash\nsrun application.sh\n"
 		write_job_script(job_script_name, job_script)
 
-		local apply_result = "workflow.dws.cray.hpe.com/" .. workflow_name .. " created\n"
+		local apply_result = "workflow.dataworkflowservices.github.io/" .. workflow_name .. " created\n"
 		local popen_count = mock_popen_calls("Proposal", "Completed", apply_result)
 		popen_count = popen_count + mock_popen_calls("Setup", "Completed")
 
@@ -855,7 +855,7 @@ describe("Slurm API", function()
 	end
 
 	local call_bb_teardown = function(hurry)
-		local delete_result = 'workflow.dws.cray.hpe.com "' .. workflow_name .. '" deleted\n'
+		local delete_result = 'workflow.dataworkflowservices.github.io "' .. workflow_name .. '" deleted\n'
 		local popen_count = mock_popen_calls("Teardown", "Completed")
 		dwsmq_enqueue(true, "") -- kubectl_cache_home
 		dwsmq_enqueue(true, delete_result)
@@ -927,7 +927,7 @@ describe("Slurm API", function()
 			local job_script = "#!/bin/bash\nsrun application.sh\n"
 			write_job_script(job_script_name, job_script)
 	
-			local apply_result = "workflow.dws.cray.hpe.com/" .. workflow_name .. " created\n"
+			local apply_result = "workflow.dataworkflowservices.github.io/" .. workflow_name .. " created\n"
 			local popen_count = mock_popen_calls("Proposal", "Error", apply_result)
 
 			local driver_id_1 = "driver1"
@@ -1000,7 +1000,7 @@ describe("Slurm API", function()
 		-- Call the appropriate slurm_bb_* function to induce an
 		-- error condition.
 		local call_bb_state_negative = function(new_state)
-			local set_state_result_wanted = 'Error from server (NotFound): workflows.dws.cray.hpe.com "' .. workflow_name .. '" not found\n'
+			local set_state_result_wanted = 'Error from server (NotFound): workflows.dataworkflowservices.github.io "' .. workflow_name .. '" not found\n'
 			dwsmq_enqueue(true, "") -- kubectl_cache_home
 			dwsmq_enqueue(false, set_state_result_wanted)
 
