@@ -49,7 +49,7 @@ class Workflow:
     )
     def _get_data(self):
         workflowData = self.k8s.CustomObjectsApi().get_namespaced_custom_object(
-            "dws.cray.hpe.com", self._api_version, "slurm", "workflows", self.name
+            "dataworkflowservices.github.io", self._api_version, "slurm", "workflows", self.name
         )
 
         return workflowData
@@ -75,10 +75,10 @@ class Workflow:
             }
         }
         self.k8s.CustomObjectsApi().patch_namespaced_custom_object(
-            "dws.cray.hpe.com", self._api_version, "slurm", "workflows", self.name, patchData
+            "dataworkflowservices.github.io", self._api_version, "slurm", "workflows", self.name, patchData
         )
 
     def delete(self):
         self.k8s.CustomObjectsApi().delete_namespaced_custom_object(
-            "dws.cray.hpe.com", self._api_version, "slurm", "workflows", self.name
+            "dataworkflowservices.github.io", self._api_version, "slurm", "workflows", self.name
         )

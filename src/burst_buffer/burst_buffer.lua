@@ -35,7 +35,7 @@ DEFAULT_LABEL_KEY = "origin"
 DEFAULT_LABEL_VAL = lua_script_name
 
 -- The fully-qualified name of the DWS Workflow CRD.
-local WORKFLOW_CRD = "workflows.dws.cray.hpe.com"
+local WORKFLOW_CRD = "workflows.dataworkflowservices.github.io"
 
 KUBECTL_CACHE_DIR = "/tmp/burst_buffer_kubectl_cache"
 
@@ -118,7 +118,7 @@ end
 -- resource with keywords that must be replaced by the caller.
 function DWS:template()
 	return [[
-apiVersion: dws.cray.hpe.com/v1alpha2
+apiVersion: dataworkflowservices.github.io/v1alpha2
 kind: Workflow
 metadata:
   name: WF_NAME
