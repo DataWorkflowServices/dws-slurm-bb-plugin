@@ -72,17 +72,7 @@ def _(slurmctld, script_path):
     # remove the slurm output from the jobs folder
     slurmctld.remove_job_output(jobId, outputFilePath, errorFilePath)
 
-@then(parsers.parse('the job state is {expectedJobState}'))
-def _(slurmctld, jobId, expectedJobState):
-    """the job state is <expectedJobState>"""
-    jobState, out = slurmctld.get_final_job_state(jobId)
-
-    if expectedJobState == "COMPLETED" and jobState == "FAILED":
-        warnings.warn(ResourceWarning((f"Job {jobId} failed unexpectedly.\n") + \
-            "This may happen if Slurm doesn't have enough resources to schedule the job.\n" + \
-            "This is not considered a test failure, in this context, since DWS isn't\n" + \
-            "dependent on the job's failure or success."
-        ))
-        return
-
-    assert jobState == expectedJobState, "Unexpected Job State: " + jobState + "\n" + out
+@then(parsers.parse('the job has eventually been {job_state:l}'))
+def _(slurmctld, jobId, job_state):
+    """the job has eventually been <job_state>"""
+    slurmctld.wait_until_job_has_been_x(jobId, job_state)

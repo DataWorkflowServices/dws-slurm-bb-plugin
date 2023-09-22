@@ -22,6 +22,7 @@ Feature: Data Workflow Services State Progression
     Verify that the DWS-Slurm Burst Buffer Plugin progresses through Data
     Workflow Services states
 
+    @happy_one
     Scenario: The DWS-BB Plugin progresses through DWS states
         Given a job script:
             #!/bin/bash
@@ -44,13 +45,15 @@ Feature: Data Workflow Services State Progression
         And the Workflow and job progress to the PostRun state
         And the Workflow and job progress to the DataOut state
         And the Workflow and job progress to the Teardown state
-        And the job state is COMPLETED
+        And the job has eventually been COMPLETED
 
     # DWS does not allow spaces in key/value pairs in directives. To skirt around this
     # constraint, the dws-test-driver replaces underscores ("_") in the message value with
     # spaces. This ensures that the dws-slurm-plugin can handle whitespace in error messages
     # It also makes it easier to check that the error is included in scontrol output.
-    Scenario Outline: The DWS-BB Plugin can handle fatal driver errors before being canceled
+    # This scenario assumes that "Flags=TeardownFailure" is set in burst_buffer.conf.
+    @fatal_one
+    Scenario Outline: Report fatal errors from Proposal, Setup, DataIn, PreRun
         Given a job script:
             #!/bin/bash
             
@@ -59,12 +62,13 @@ Feature: Data Workflow Services State Progression
             /bin/hostname
 
         When the job is run
-        Then a Workflow has been created for the job
-        And the Workflow and job report fatal errors at the <workflowState> state
-        And the job is canceled
-        And the Workflow and job progress to the Teardown state
-        And the job's final system comment contains the following:
+        And some Workflow has been created for the job
+        And the Workflow reports fatal errors at the <workflowState> state
+        Then the job's system comment eventually contains the following:
             TEST FATAL ERROR
+        And the Workflow and job progress to the Teardown state
+        And the Workflow has eventually been deleted
+        And the job has eventually been CANCELLED
         
         Examples:
             # *** HEADER ***
@@ -73,14 +77,15 @@ Feature: Data Workflow Services State Progression
             | Proposal      |
             | Setup         |
             | DataIn        |
-            | PostRun       | 
-            | DataOut       | 
+            | PreRun        |
 
-    # With the exception of PreRun, states will need to be canceled with the
-    # "--hurry" flag to transition to the Teardown state. If 
-    # "Flags=TeardownFailure" is set in burst_buffer.conf, then all states will
-    # transition to Teardown without needing to be canceled
-    Scenario Outline: The DWS-BB Plugin can handle fatal driver errors for PreRun
+    # DWS does not allow spaces in key/value pairs in directives. To skirt around this
+    # constraint, the dws-test-driver replaces underscores ("_") in the message value with
+    # spaces. This ensures that the dws-slurm-plugin can handle whitespace in error messages
+    # It also makes it easier to check that the error is included in scontrol output.
+    # This scenario assumes that "Flags=TeardownFailure" is set in burst_buffer.conf.
+    @fatal_two
+    Scenario Outline: Report fatal errors from PostRun and DataOut
         Given a job script:
             #!/bin/bash
             
@@ -89,22 +94,23 @@ Feature: Data Workflow Services State Progression
             /bin/hostname
 
         When the job is run
-        Then a Workflow has been created for the job
-        And the Workflow reports a fatal error in the <workflowState> state
-        And the Workflow and job progress to the Teardown state
-        # Slurm moved it from PreRun/Error to Teardown without canceling
-        # the job.  So the driver (this test) must cancel it.
-        And the job is canceled
-        And the job's final system comment contains the following:
+        And some Workflow has been created for the job
+        And the Workflow reports fatal errors at the <workflowState> state
+        Then the job's system comment eventually contains the following:
             TEST FATAL ERROR
+        And the Workflow and job progress to the Teardown state
+        And the Workflow has eventually been deleted
+        And the job has eventually been COMPLETED
         
         Examples:
             # *** HEADER ***
             | workflowState |
             # *** VALUES ***
-            | PreRun        |
+            | PostRun       | 
+            | DataOut       |
 
-    Scenario: The DWS-BB Plugin can handle fatal driver errors during Teardown
+    @fatal_three
+    Scenario: Report fatal errors from Teardown
         Given a job script:
             #!/bin/bash
             
@@ -112,12 +118,7 @@ Feature: Data Workflow Services State Progression
             /bin/hostname
 
         When the job is run
-        Then a Workflow has been created for the job
-        And the Workflow reports a fatal error in the Teardown state
-        And the job's intermediate system comment contains the following:
-            TEST FATAL ERROR
-        # Eventually the driver (this test) must work through the Teardown
-        # issues and complete that step.  Slurm has already marked the job
-        # as completed and is now looping over slurm_bb_job_teardown() in
-        # burst_buffer.lua.
-        And the Workflow error is cleared from the Teardown state
+        And some Workflow has been created for the job
+        And the Workflow reports fatal errors at the Teardown state
+        Then the Workflow has eventually been deleted
+        And the job has eventually been COMPLETED
