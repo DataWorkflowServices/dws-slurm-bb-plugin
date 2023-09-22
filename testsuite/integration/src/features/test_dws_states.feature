@@ -67,8 +67,8 @@ Feature: Data Workflow Services State Progression
         Then the job's system comment eventually contains the following:
             TEST FATAL ERROR
         And the Workflow and job progress to the Teardown state
-        And the job has eventually been CANCELLED
         And the Workflow has eventually been deleted
+        And the job has eventually been CANCELLED
         
         Examples:
             # *** HEADER ***
@@ -99,8 +99,8 @@ Feature: Data Workflow Services State Progression
         Then the job's system comment eventually contains the following:
             TEST FATAL ERROR
         And the Workflow and job progress to the Teardown state
-        And the job has eventually been COMPLETED
         And the Workflow has eventually been deleted
+        And the job has eventually been COMPLETED
         
         Examples:
             # *** HEADER ***
@@ -120,5 +120,5 @@ Feature: Data Workflow Services State Progression
         When the job is run
         And some Workflow has been created for the job
         And the Workflow reports fatal errors at the Teardown state
-        Then the job has eventually been COMPLETED
-        And the Workflow has eventually been deleted
+        Then the Workflow has eventually been deleted
+        And the job has eventually been COMPLETED
