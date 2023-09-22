@@ -855,11 +855,13 @@ describe("Slurm API", function()
 	end
 
 	local call_bb_teardown = function(hurry)
+		dwsmq_enqueue(true, "") -- get_driver_errors
+		dwsmq_enqueue(true, "") -- kubectl_cache_home
 		local delete_result = 'workflow.dataworkflowservices.github.io "' .. workflow_name .. '" deleted\n'
 		local popen_count = mock_popen_calls("Teardown", "Completed")
 		dwsmq_enqueue(true, "") -- kubectl_cache_home
 		dwsmq_enqueue(true, delete_result)
-		popen_count = popen_count + 2
+		popen_count = popen_count + 4
 
 		io.popen:clear()
 		local ret, err = slurm_bb_job_teardown(jobID, job_script_name, hurry)
