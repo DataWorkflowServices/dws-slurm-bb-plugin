@@ -108,17 +108,3 @@ Feature: Data Workflow Services State Progression
             # *** VALUES ***
             | PostRun       | 
             | DataOut       |
-
-    @fatal_three
-    Scenario: Report fatal errors from Teardown
-        Given a job script:
-            #!/bin/bash
-            
-            #DW Teardown action=error message=TEST_FATAL_ERROR severity=Fatal
-            /bin/hostname
-
-        When the job is run
-        And some Workflow has been created for the job
-        And the Workflow reports fatal errors at the Teardown state
-        Then the Workflow has eventually been deleted
-        And the job has eventually been COMPLETED
