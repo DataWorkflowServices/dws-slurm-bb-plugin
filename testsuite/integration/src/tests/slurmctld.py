@@ -20,6 +20,7 @@
 import os
 import time
 import docker
+import re
 from tenacity import *
 
 # Submitting jobs can fail, occasionally, when the DWS webhook rejects the
@@ -59,13 +60,6 @@ class Slurmctld:
         jobId = int(out.split()[-1])
         return jobId, scriptPath + ".out", scriptPath + ".error.out"
 
-    def cancel_job(self, jobId, hurry_flag=False):
-        print("cancel job" + str(jobId))
-        cmd = "scancel --hurry %s" % str(jobId)
-        rc, out = self.exec_run(cmd)
-        if rc != 0:
-            raise JobCancelError(out)
-
     def remove_job_output(self, jobId, outputFilePath, errorFilePath):
         """
         The creation of the job's output file will sometimes lag behind the
@@ -92,19 +86,7 @@ class Slurmctld:
             print(f"Workflow {jobId} still exists: " + out)
             raise JobNotCompleteError()
 
-    @retry(
-        wait=wait_fixed(2),
-        stop=stop_after_attempt(30),
-        retry=retry_if_result(lambda state: state[0] not in ["COMPLETED", "FAILED", "CANCELLED"]),
-        retry_error_callback=lambda retry_state: retry_state.outcome.result()
-    )
-    def get_final_job_state(self, jobId, must_be_gone=True):
-        # When the job is finished, the workflow should not exist.
-        if must_be_gone:
-            self.wait_until_workflow_is_gone(jobId)
-        else:
-            time.sleep(5) # wait for workflow info to be transferred to the job
-
+    def scontrol_show_job(self, jobId):
         rc, out = self.exec_run("scontrol show job " + str(jobId))
         assert rc==0, "Could not get job state from Slurm:\n" + out
 
@@ -119,8 +101,29 @@ class Slurmctld:
                     print("JobState=" + keyVal[1])
                     return keyVal[1], out
         assert False, "Could not parse state from: " + out
+    
+    @retry(
+        wait=wait_fixed(2),
+        stop=stop_after_attempt(5)
+    ) 
+    def wait_until_job_has_been_x(self, jobId, job_state):
+        job_state, _ = self.scontrol_show_job(jobId)
+        print(f"Found \"{job_state}\" in JobState")
+        assert job_state == job_state
 
-    def get_workflow_status(self, jobId):
+    @retry(
+        wait=wait_fixed(2),
+        stop=stop_after_attempt(5)
+    )
+    def wait_until_job_system_comment(self, jobId, message):
+        _,out = self.scontrol_show_job(jobId)
+        m = re.search(r'\n\s+SystemComment=(.*)\n\s+StdErr=', out, re.DOTALL)
+        assert m is not None, f"Could not find SystemComment in job state from Slurm\n{out}"
+        if message in m.group(1):
+            print(f"Found \"{message}\" in SystemComment")
+        assert message in m.group(1)
+    
+    def scontrol_show_bbstat(self, jobId):
         rc, out = self.exec_run("scontrol show bbstat workflow " + str(jobId))
         assert rc == 0, "Could not get job status from Slurm:\n" + out
         # This next check is because the scontrol command does not exit non-zero

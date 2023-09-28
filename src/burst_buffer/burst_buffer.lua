@@ -35,7 +35,7 @@ DEFAULT_LABEL_KEY = "origin"
 DEFAULT_LABEL_VAL = lua_script_name
 
 -- The fully-qualified name of the DWS Workflow CRD.
-local WORKFLOW_CRD = "workflows.dws.cray.hpe.com"
+local WORKFLOW_CRD = "workflows.dataworkflowservices.github.io"
 
 KUBECTL_CACHE_DIR = "/tmp/burst_buffer_kubectl_cache"
 
@@ -118,7 +118,7 @@ end
 -- resource with keywords that must be replaced by the caller.
 function DWS:template()
 	return [[
-apiVersion: dws.cray.hpe.com/v1alpha2
+apiVersion: dataworkflowservices.github.io/v1alpha2
 kind: Workflow
 metadata:
   name: WF_NAME
@@ -280,9 +280,16 @@ end
 
 -- DWS:get_driver_errors will collect driver errors from the Workflow resource
 -- with respect to the given state.
-function DWS:get_driver_errors(state)
-	local error_list = {}
-	local jsonpath = [[{range .status.drivers[?(@.watchState=="]].. state ..[[")]}==={"\n"}{@.status}{"\n"}{@.driverID}{"\n"}{@.error}{"\n"}{end}]]
+-- If all_errors=true then collect all errors from all states in all drivers.
+-- On success this returns true and a string with all of the errors.
+-- On failure this returns false, an empty string for the errors, and a string
+-- explaining why it couldn't collect the errors.
+function DWS:get_driver_errors(state, all_errors)
+	local driver_index = [[?(@.watchState=="]].. state ..[[")]]
+	if all_errors == true then
+		driver_index = "*"
+	end
+	local jsonpath = [[{range .status.drivers[]] .. driver_index .. [[]}==={"\n"}{@.status}{"\n"}{@.driverID}{"\n"}{@.error}{"\n"}{end}]]
 	local ret, output = self:get_jsonpath(jsonpath)
 	if ret == false then
 		return ret, "", "could not get driver errors: " .. output
@@ -440,6 +447,18 @@ function DWS:kubectl(cmd)
 	end
 	local kcmd = homedir_msg .. " kubectl " .. self:token() .. " " .. cmd
 	return self:io_popen(kcmd)
+end
+
+-- DWS:scancel will run the Slurm scancel command and collect its output.
+-- On success this returns true and the output of the command.
+-- On failure this returns false and the output of the command.
+function DWS:scancel(jobId, hurry)
+	local hurry_opt = ""
+	if hurry == true then
+		hurry_opt = "--hurry "
+	end
+	local scmd = "scancel " .. hurry_opt .. jobId
+	return self:io_popen(scmd)
 end
 
 -- DWS:io_popen will run the given command and collect its output.
@@ -627,24 +646,51 @@ function slurm_bb_job_teardown(job_id, job_script, hurry)
 		hurry_flag = true
 	end
 	local workflow = DWS(make_workflow_name(job_id))
-	local done, err = workflow:set_workflow_state_and_wait("Teardown", hurry_flag)
+
+	local ret = slurm.SUCCESS
+	-- Does the workflow have a fatal error in it?
+	-- If so, we'll call scancel as well.
+	local done, state_errors, err = workflow:get_driver_errors("", true)
 	if done == false then
 		if string.find(err, [["]] .. workflow.name .. [[" not found]]) then
 			-- It's already gone, and that's what we wanted anyway.
 			return slurm.SUCCESS
 		else
-			slurm.log_error("%s: slurm_bb_job_teardown(), workflow=%s: %s", lua_script_name, workflow.name, err)
-			return slurm.ERROR, err
+			slurm.log_error("%s: slurm_bb_job_teardown(), workflow=%s: unable to check driver errors: %s", lua_script_name, workflow.name, err)
+			ret = slurm.ERROR
+			-- fall-through, let the Workflow delete happen.
 		end
+	end
+
+	done, err = workflow:set_workflow_state_and_wait("Teardown", hurry_flag)
+	if done == false then
+		slurm.log_error("%s: slurm_bb_job_teardown(), workflow=%s: %s", lua_script_name, workflow.name, err)
+		ret = slurm.ERROR
+		-- fall-through, let the Workflow delete happen.
 	end
 
 	done, err = workflow:delete()
 	if done == false then
 		slurm.log_error("%s: slurm_bb_job_teardown(), workflow=%s, delete: %s", lua_script_name, workflow.name, err)
-		return slurm.ERROR, err
+		ret = slurm.ERROR
+		-- fall-through, let any necessary scancel happen.
 	end
 
-	return slurm.SUCCESS
+	if state_errors ~= "" then
+		-- Now do the scancel.  This will terminate this Lua script and will
+		-- trigger slurm to call our teardown again, but that'll be a no-op
+		-- when it comes back here.
+		slurm.log_info("%s: slurm_bb_job_teardown(), workflow=%s: executing scancel --hurry %s, found driver errors: %s", lua_script_name, workflow.name, job_id, state_errors)
+		_, err = workflow:scancel(job_id, true)
+		if err == "" then
+			err = "(no output)"
+		end
+	end
+
+	if ret == slurm.SUCCESS then
+		err = ""
+	end
+	return ret, err
 end
 
 --[[
@@ -844,10 +890,20 @@ function slurm_bb_get_status(...)
 	local args = {...}
 	args.n = select("#", ...)
 
+	local found_jid = false
+	local jid = 0
 	if args.n == 2 and args[1] == "workflow" then
+		-- Slurm 22.05
+		jid = args[2]
+		found_jid = true
+	elseif args.n == 4 and args[3] == "workflow" then
+		-- Slurm 23.02
+		jid = args[4]
+		found_jid = true
+	end
+	if found_jid == true then
 		local done = false
 		local status = {}
-		local jid = args[2]
 		if string.find(jid, "^%d+$") == nil then
 			msg = "A job ID must contain only digits."
 		else
