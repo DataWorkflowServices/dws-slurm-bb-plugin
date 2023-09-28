@@ -1,5 +1,5 @@
 #
-# Copyright 2022 Hewlett Packard Enterprise Development LP
+# Copyright 2022-2023 Hewlett Packard Enterprise Development LP
 # Other additional copyright holders may be indicated within.
 #
 # The entirety of this work is licensed under the Apache License,
@@ -47,8 +47,8 @@ def _(k8s):
 def _(k8s):
     """the DataWorkflowServices deployment is queried."""
     return k8s.AppsV1Api().list_namespaced_deployment(
-        namespace="dws-operator-system",
-        field_selector="metadata.name=dws-operator-controller-manager"
+        namespace="dws-system",
+        field_selector="metadata.name=dws-controller-manager"
     )
 
 @when('the kube-system UID is queried from slurmctld', target_fixture="kube_system_uid_from_slurmctld")

@@ -39,10 +39,10 @@ setup-dws:
 	@{\
 		set -e ; \
 		cd ../submodules/dws ; \
-		docker buildx build -t local/dws-operator:test --load . ; \
-		IMAGE_TAG_BASE=local/dws-operator VERSION=test KIND_CLUSTER=dws make kind-push deploy ; \
-		kubectl wait deployment --timeout=120s -n dws-operator-system dws-operator-controller-manager --for condition=Available=True ; \
-		kubectl wait deployment --timeout=120s -n dws-operator-system dws-operator-webhook --for condition=Available=True ; \
+		docker buildx build -t local/dws:test --load . ; \
+		IMAGE_TAG_BASE=local/dws VERSION=test KIND_CLUSTER=dws make kind-push deploy ; \
+		kubectl wait deployment --timeout=120s -n dws-system dws-controller-manager --for condition=Available=True ; \
+		kubectl wait deployment --timeout=120s -n dws-system dws-webhook --for condition=Available=True ; \
 	}
 
 .PHONY: setup-dws-test-driver
@@ -50,9 +50,9 @@ setup-dws-test-driver:
 	@{\
 		set -e ; \
 		cd ../submodules/dws-test-driver ; \
-		docker buildx build -t local/dws-test-driver-operator:test --load . ; \
-		IMAGE_TAG_BASE=local/dws-test-driver-operator VERSION=test KIND_CLUSTER=dws make kind-push deploy ; \
-		kubectl wait deployment --timeout=60s -n dws-test-operator-system dws-test-driver-controller-manager --for condition=Available=True ; \
+		docker buildx build -t local/dws-test-driver:test --load . ; \
+		IMAGE_TAG_BASE=local/dws-test-driver VERSION=test KIND_CLUSTER=dws make kind-push deploy ; \
+		kubectl wait deployment --timeout=60s -n dws-test-system dws-test-driver-controller-manager --for condition=Available=True ; \
 	}
 
 .PHONY: setup
@@ -75,10 +75,10 @@ debug:
 	kubectl describe node dws-control-plane dws-worker
 	echo
 	echo "***** DWS DEPLOYMENT *****"
-	kubectl describe deployment -n dws-operator-system dws-operator-controller-manager
+	kubectl describe deployment -n dws-system dws-controller-manager
 	echo
 	echo "***** DWS LOGS *****"
-	kubectl logs -n dws-operator-system deployment/dws-operator-controller-manager
+	kubectl logs -n dws-system deployment/dws-controller-manager
 	
 .PHONY: reports
 reports:
