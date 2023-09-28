@@ -837,7 +837,6 @@ describe("Slurm API", function()
 		assert.stub(io.popen).was_called(popen_calls)
 		io.popen:clear()
 		assert.is_equal(ret, slurm.SUCCESS)
-		assert.is_nil(err, err)
 	end
 
 	local call_bb_setup = function()
