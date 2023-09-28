@@ -688,7 +688,7 @@ function slurm_bb_job_teardown(job_id, job_script, hurry)
 	end
 
 	if ret == slurm.SUCCESS then
-		err = nil
+		err = ""
 	end
 	return ret, err
 end
