@@ -88,10 +88,16 @@ In the container, from inside the `/jobs` directory, submit this new batch job:
 bash-4.4$ sbatch test-bb.sh
 ```
 
-You can watch the Workflow resource appear and proceed through the states to DataOut, where it will pause with a state of DriverWait:
+You can watch the Workflow resource appear and proceed through the states to DataOut, where it will pause with a state of DriverWait.  Run all `kubectl` commands from your host, not from inside the slurmctld container:
 
 ```console
 kubectl get workflow -wA
+```
+
+If you want to run the `kubectl` commands from inside the slumctld container, then set the KUBECONFIG environment variable in the container.  The kubectl command will then use this kubeconfig file.
+
+```console
+export KUBECONFIG=/etc/slurm/slurm-dws.kubeconfig
 ```
 
 When the Workflow is in DriverWait, you can release it by marking it as completed.  In this case, my job ID is `12`, so the Workflow resource we're editing is `bb12`.  The paths specified in this patch refer to index 0, the first (and only) `#DW` directive in our job script.

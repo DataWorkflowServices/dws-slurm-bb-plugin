@@ -39,6 +39,8 @@ local WORKFLOW_CRD = "workflows.dataworkflowservices.github.io"
 
 KUBECTL_CACHE_DIR = "/tmp/burst_buffer_kubectl_cache"
 
+KUBECONFIG = "/etc/slurm/slurm-dws.kubeconfig"
+
 math.randomseed(os.time())
 
 -- Used by the tests when stubbing io.popen.  These values will be
@@ -445,7 +447,8 @@ function DWS:kubectl(cmd)
 	if done ~= true then
 		return false, homedir_msg
 	end
-	local kcmd = homedir_msg .. " kubectl " .. self:token() .. " " .. cmd
+	local kubeconfig_arg = "--kubeconfig " .. KUBECONFIG
+	local kcmd = homedir_msg .. " kubectl " .. kubeconfig_arg .. " " .. self:token() .. " " .. cmd
 	return self:io_popen(kcmd)
 end
 
