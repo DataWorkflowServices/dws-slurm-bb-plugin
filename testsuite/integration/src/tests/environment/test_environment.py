@@ -54,7 +54,7 @@ def _(k8s):
 @when('the kube-system UID is queried from slurmctld', target_fixture="kube_system_uid_from_slurmctld")
 def _(slurmctld):
     """the kube-system UID is queried from slurmctld."""
-    rc,out = slurmctld.exec_run("kubectl get namespace -o=json kube-system")
+    rc,out = slurmctld.exec_run("kubectl --kubeconfig /etc/slurm/slurm-dws.kubeconfig get namespace -o=json kube-system")
     assert rc==0, "non-zero return code: \n" + out
     return json.loads(out)["metadata"]["uid"]
 

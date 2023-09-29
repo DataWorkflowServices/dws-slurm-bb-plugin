@@ -74,7 +74,9 @@ services:
       - type: bind
         source: ../../../src/burst_buffer/burst_buffer.conf
         target: /etc/slurm/burst_buffer.conf
-      - ../kubeconfig:/home/slurm/.kube/config
+      - type: bind
+        source: ../kubeconfig
+        target: /etc/slurm/slurm-dws.kubeconfig
     expose:
       - "6817"
     # depends_on:
