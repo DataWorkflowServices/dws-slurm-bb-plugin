@@ -52,7 +52,7 @@ install_dependencies () {
 
   # Pull cert-manager into the local cache and push into KIND.  Sometimes
   # the KIND env cannot pull it from upstream.
-  CERTVER=v1.11.1
+  CERTVER=v1.13.1
   for part in controller webhook cainjector
   do
       image=quay.io/jetstack/cert-manager-$part:$CERTVER
