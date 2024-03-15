@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 #
-# Copyright 2022-2023 Hewlett Packard Enterprise Development LP
+# Copyright 2022-2024 Hewlett Packard Enterprise Development LP
 # Other additional copyright holders may be indicated within.
 #
 # The entirety of this work is licensed under the Apache License,
@@ -71,7 +71,7 @@ install_dependencies () {
 prep_kubeconfig () {
   set -e
   cp ~/.kube/config kubeconfig
-  yq -i e '(.clusters | map(select(.name=="kind-dws")))[0].cluster.server |= "https://dws-control-plane:6443"' kubeconfig
+  KUBECONFIG=kubeconfig kubectl config set-cluster kind-dws --server https://dws-control-plane:6443
   chmod a+r kubeconfig
   KUBECONFIG=kubeconfig kubectl config use-context kind-dws
   KUBECONFIG=kubeconfig kubectl config set-context --current --namespace=slurm
