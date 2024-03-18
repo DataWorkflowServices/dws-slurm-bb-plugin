@@ -58,7 +58,7 @@ services:
       args:
         SLURM_TAG: ${SLURM_TAG:-slurm-22-05-4-1}
       cache_from:
-        - "/tmp/.buildx-cache"
+        - slurm-bb:slurm-22-05-4-1
     command: ["slurmctld"]
     container_name: slurmctld
     hostname: slurmctld
