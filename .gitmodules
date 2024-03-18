@@ -4,6 +4,7 @@
 [submodule "testsuite/submodules/dws"]
 	path = testsuite/submodules/dws
 	url = git@github.com:DataWorkflowServices/dws.git
-[submodule "testsuite/submodules/dws-test-driver"]
+[submodule "me-dwstest"]
 	path = testsuite/submodules/dws-test-driver
-	url = git@github.com:DataWorkflowServices/dws-test-driver.git
+	url = git@github.com:roehrich-hpe/dws-test-driver-d.git
+	branch = goto-v0.0.18

@@ -75,6 +75,9 @@ prep_kubeconfig () {
   chmod a+r kubeconfig
   KUBECONFIG=kubeconfig kubectl config use-context kind-dws
   KUBECONFIG=kubeconfig kubectl config set-context --current --namespace=slurm
+  echo "======  KUBECONFIG ====="
+  cat kubeconfig
+  echo "========="
 }
 
 teardown () {
