@@ -39,9 +39,9 @@ setup-kind:
 	echo "=== DEAN list networks"
 	docker network ls
 	echo "=== DEAN list nodes"
-	KUBECONFIG=kubeconfig kubectl get nodes
+	kubectl get nodes
 	echo "=== DEAN list pods "
-	KUBECONFIG=kubeconfig kubectl get pods -A
+	kubectl get pods -A
 	echo "=== DEAN end of lists"
 
 .PHONY: setup-dws
@@ -55,7 +55,7 @@ setup-dws:
 		kubectl wait deployment --timeout=120s -n dws-system dws-webhook --for condition=Available=True ; \
 	}
 	echo "=== DEAN list pods "
-	KUBECONFIG=kubeconfig kubectl get pods -A
+	kubectl get pods -A
 
 .PHONY: setup-dws-test-driver
 setup-dws-test-driver:
@@ -67,7 +67,7 @@ setup-dws-test-driver:
 		kubectl wait deployment --timeout=60s -n dws-test-system dws-test-driver-controller-manager --for condition=Available=True ; \
 	}
 	echo "=== DEAN list pods "
-	KUBECONFIG=kubeconfig kubectl get pods -A
+	kubectl get pods -A
 
 .PHONY: setup
 setup: setup-kind setup-dws setup-dws-test-driver

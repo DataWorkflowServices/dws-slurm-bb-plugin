@@ -24,8 +24,8 @@ services:
     image: local/integration-test:${TAG:-test}
     build:
       context: .
-      cache_from:
-        - local/integration-test:test
+    #  cache_from:
+    #    - local/integration-test:test
     container_name: integration-test
     privileged: true
     hostname: integration-test
