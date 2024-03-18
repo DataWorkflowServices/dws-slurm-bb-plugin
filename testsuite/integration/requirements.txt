@@ -1,6 +1,6 @@
 pytest == 7
 pytest-bdd == 6
-pytest-html == 3
-docker == 6
-kubernetes >= 25.3
+pytest-html == 4
+docker == 7
+kubernetes >= 27.2
 tenacity == 8
