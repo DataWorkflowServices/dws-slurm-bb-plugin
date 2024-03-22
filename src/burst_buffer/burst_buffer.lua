@@ -406,6 +406,9 @@ end
 function DWS:kubectl_cache_home()
 
 	local dir_exists = function(dname)
+		if dname == nil or dname == '' then
+			return false
+		end
 		local cmd = "test -d " .. dname
 		local done, _ = self:io_popen(cmd)
 		return done

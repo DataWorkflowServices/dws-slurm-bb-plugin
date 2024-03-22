@@ -1,5 +1,5 @@
 #
-# Copyright 2022-2023 Hewlett Packard Enterprise Development LP
+# Copyright 2022-2024 Hewlett Packard Enterprise Development LP
 # Other additional copyright holders may be indicated within.
 #
 # The entirety of this work is licensed under the Apache License,
@@ -50,8 +50,8 @@ setup-dws-test-driver:
 	@{\
 		set -e ; \
 		cd ../submodules/dws-test-driver ; \
-		docker buildx build -t local/dws-test-driver:test --load . ; \
-		IMAGE_TAG_BASE=local/dws-test-driver VERSION=test KIND_CLUSTER=dws make kind-push deploy ; \
+		docker buildx build -t ghcr.io/dataworkflowservices/dws-test-driver:local-test --load . ; \
+		VERSION=local-test KIND_CLUSTER=dws make kind-push deploy ; \
 		kubectl wait deployment --timeout=60s -n dws-test-system dws-test-driver-controller-manager --for condition=Available=True ; \
 	}
 
