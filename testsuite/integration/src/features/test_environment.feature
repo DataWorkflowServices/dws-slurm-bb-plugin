@@ -1,5 +1,5 @@
 #
-# Copyright 2022-2023 Hewlett Packard Enterprise Development LP
+# Copyright 2022-2024 Hewlett Packard Enterprise Development LP
 # Other additional copyright holders may be indicated within.
 #
 # The entirety of this work is licensed under the Apache License,
@@ -29,6 +29,11 @@ Feature: Integration test environment
         When the DataWorkflowServices deployment is queried
         Then the DataWorkflowServices deployment is found
 
+    Scenario: Slurmctld container can contact Kubernetes
+        Given the kubernetes cluster kube-system UID
+        When the kube-system UID is queried from slurmctld container
+        Then the UIDs match and the cluster is the same
+
     Scenario: Slurm is usable
         Given a job script:
             #!/bin/bash
@@ -37,8 +42,3 @@ Feature: Integration test environment
             srun -l /bin/pwd
         When the job is run
         Then the job has eventually been COMPLETED
-
-    Scenario: Kubernetes and slurm are connected
-        Given the kubernetes cluster kube-system UID
-        When the kube-system UID is queried from slurmctld
-        Then the UIDs match and the cluster is the same

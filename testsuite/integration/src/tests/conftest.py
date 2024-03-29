@@ -1,5 +1,5 @@
 #
-# Copyright 2022-2023 Hewlett Packard Enterprise Development LP
+# Copyright 2022-2024 Hewlett Packard Enterprise Development LP
 # Other additional copyright holders may be indicated within.
 #
 # The entirety of this work is licensed under the Apache License,
@@ -19,7 +19,6 @@
 
 import os
 import secrets
-import warnings
 import pytest
 
 from kubernetes import client, config
@@ -64,15 +63,15 @@ def _(script):
 def _(slurmctld, script_path):
     """the job is run."""
 
-    jobId, outputFilePath, errorFilePath = slurmctld.submit_job(script_path)
+    jobId, output_file_path, error_file_path = slurmctld.submit_job(script_path)
     print("submitted job: " + str(jobId))
 
     yield jobId
 
     # remove the slurm output from the jobs folder
-    slurmctld.remove_job_output(jobId, outputFilePath, errorFilePath)
+    slurmctld.remove_job_output(output_file_path, error_file_path)
 
 @then(parsers.parse('the job has eventually been {job_state:l}'))
-def _(slurmctld, jobId, job_state):
+def _(slurmctld, jobId, job_state, script_path):
     """the job has eventually been <job_state>"""
-    slurmctld.wait_until_job_has_been_x(jobId, job_state)
+    slurmctld.wait_until_job_has_been_x(jobId, job_state, script_path)

@@ -56,7 +56,7 @@ services:
     build:
       context: ../../submodules/slurm-docker-cluster
       args:
-        SLURM_TAG: ${SLURM_TAG:-slurm-22-05-4-1}
+        SLURM_TAG: ${SLURM_TAG:-slurm-23-02-7-1}
       #cache_from:
       #  - slurm-bb:slurm-22-05-4-1
     command: ["slurmctld"]

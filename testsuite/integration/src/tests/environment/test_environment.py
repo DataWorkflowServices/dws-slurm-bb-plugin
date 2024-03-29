@@ -1,5 +1,5 @@
 #
-# Copyright 2022-2023 Hewlett Packard Enterprise Development LP
+# Copyright 2022-2024 Hewlett Packard Enterprise Development LP
 # Other additional copyright holders may be indicated within.
 #
 # The entirety of this work is licensed under the Apache License,
@@ -51,9 +51,9 @@ def _(k8s):
         field_selector="metadata.name=dws-controller-manager"
     )
 
-@when('the kube-system UID is queried from slurmctld', target_fixture="kube_system_uid_from_slurmctld")
+@when('the kube-system UID is queried from slurmctld container', target_fixture="kube_system_uid_from_slurmctld")
 def _(slurmctld):
-    """the kube-system UID is queried from slurmctld."""
+    """the kube-system UID is queried from slurmctld container."""
     rc,out = slurmctld.exec_run("kubectl --kubeconfig /etc/slurm/slurm-dws.kubeconfig get namespace -o=json kube-system")
     assert rc==0, "non-zero return code: \n" + out
     return json.loads(out)["metadata"]["uid"]

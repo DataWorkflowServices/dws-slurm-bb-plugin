@@ -86,10 +86,14 @@ reports:
 	docker cp -a integration-test:/reports/ .
 
 .PHONY: clean
-clean:
+clean: clean-tests
 	docker compose down || echo "Integration test container cleanup failed"
 	docker network disconnect slurm_default dws-control-plane || echo "Docker network cleanup failed"
 	cd slurm && docker compose down --volumes || echo "Slurm cleanup failed"
 	source kind/kind.sh && teardown || echo "Kind cleanup failed"
+
+.PHONY: clean-tests
+clean-tests:
+	rm -rf src/.pytest_cache src/tests/__pycache__ src/tests/dws_bb_plugin/__pycache__ src/tests/environment/__pycache__ src/tests/a-environment/__pycache__ src/tests/b-dws-bb-plugin/__pycache__
 
 all: setup test

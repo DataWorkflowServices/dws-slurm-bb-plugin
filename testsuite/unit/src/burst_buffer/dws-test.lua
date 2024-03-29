@@ -1,5 +1,5 @@
 -- 
---  Copyright 2022-2023 Hewlett Packard Enterprise Development LP
+--  Copyright 2022-2024 Hewlett Packard Enterprise Development LP
 --  Other additional copyright holders may be indicated within.
 -- 
 --  The entirety of this work is licensed under the Apache License,
@@ -303,15 +303,6 @@ describe("The dws library", function()
 			make_and_save_workflow_yaml()
 			apply_workflow()
 			query_label(workflow, DEFAULT_LABEL_KV)
-			delete_workflow()
-		end)
-
-		it("can apply and delete a workflow resource using custom label", function()
-			labels = {[my_label_key] = my_label_val}
-			make_and_save_workflow_yaml()
-			apply_workflow()
-			query_label(workflow, DEFAULT_LABEL_KV)
-			query_label(workflow, my_label_kv)
 			delete_workflow()
 		end)
 	end)
@@ -673,18 +664,14 @@ describe("Burst buffer helpers", function()
 			io.popen:revert()
 		end)
 
-		local create_workflow = function(labels)
+		local create_workflow = function()
 			local result_wanted = "workflow.dataworkflowservices.github.io/" .. workflow_name .. " created\n"
 
 			dwsmq_enqueue(true, "") -- kubectl_cache_home
 			dwsmq_enqueue(true, result_wanted)
 
 			local done, err
-			if labels ~= nil then
-				done, err = make_workflow(workflow, job_script_name, jobID, userID, groupID, labels)
-			else
-				done, err = make_workflow(workflow, job_script_name, jobID, userID, groupID)
-			end
+			done, err = make_workflow(workflow, job_script_name, jobID, userID, groupID)
 			resource_exists = done
 			expect_exists = true
 			assert.stub(io.popen).was_called(2)
@@ -702,15 +689,6 @@ describe("Burst buffer helpers", function()
 			local job_script = "#!/bin/bash\nsrun application.sh\n"
 			write_job_script(job_script_name, job_script)
 			create_workflow()
-		end)
-
-		it("can create workflow with custom labels", function()
-			local job_script = "#!/bin/bash\nsrun application.sh\n"
-			write_job_script(job_script_name, job_script)
-
-			local labels = {["note"] = "temporary"}
-			create_workflow(labels)
-			query_label(workflow, "note=temporary")
 		end)
 
 		it("can create workflow from job script with directives", function()
@@ -761,6 +739,9 @@ describe("Slurm API", function()
 		userID = math.random(1000)
 		groupID = math.random(1000)
 		workflow_name = make_workflow_name(jobID)
+		job_info = {
+			job_id = jobID,
+		}
 
 		job_script_name = os.tmpname()
 
@@ -774,53 +755,12 @@ describe("Slurm API", function()
 		io.popen:revert()
 	end)
 
-	it("slurm_bb_job_process can validate a workflow from a job script lacking directives", function()
-		local job_script = "#!/bin/bash\nsrun application.sh\n"
-
-		write_job_script(job_script_name, job_script)
-
-		-- slurm_bb_job_process() is creating a temp name for the
-		-- resource and deleting it.  If it bails before it can delete
-		-- the temp resource, we have no way of knowing where it bailed
-		-- or how to find the name of the temp resource, so we are not
-		-- able to do the cleanup ourselves.  This also means none of
-		-- the work it performs can be carried over to the next stage.
-		--
-		-- In slurm_bb_setup() we will recreate the resource using the
-		-- job ID in the name so it can be found in the remaining
-		-- stages.
-		--
-		-- A future release of Slurm will include more args to the
-		-- slurm_bb_job_process() function and we'll be able to change
-		-- all of this.
-
-		local ret, err = slurm_bb_job_process(job_script_name)
-		assert.stub(io.popen).was_called(4)
-		assert.is_equal(ret, slurm.SUCCESS)
-		assert.is_nil(err, err)
-	end)
-
-	it("slurm_bb_job_process can validate workflow from job script with directives", function()
-		local in_dwd = {}
-		in_dwd[1] = "#DW pool=pool1 capacity=1K"
-		in_dwd[2] = "#DW pool=pool2 capacity=1K"
-		local job_script = "#!/bin/bash\n" .. in_dwd[1] .. "\n" .. in_dwd[2] .. "\nsrun application.sh\n"
-		write_job_script(job_script_name, job_script)
-
-		-- The DWS environment does not have a ruleset for
-		-- the #DW directives, so we should expect an error.
-		-- We'll look for only a small piece of the error
-		-- message here.
-		local result_wanted = "unable to find ruleset"
+	local mock_process_popen_calls = function(k8s_cmd_result)
 		dwsmq_enqueue(true, "") -- kubectl_cache_home
-		dwsmq_enqueue(false, result_wanted)
-
-		local ret, err = slurm_bb_job_process(job_script_name)
-		assert.stub(io.popen).was_called(2)
-		print("Expect an error message here: " .. err)
-		assert.is_equal(ret, slurm.ERROR)
-		assert.is_not_nil(string.find(err, result_wanted))
-	end)
+		dwsmq_enqueue(true, k8s_cmd_result)
+		-- return the number of messages queued
+		return 2
+	end
 
 	local mock_popen_calls = function(state, status, k8s_cmd_result)
 		local k8s_cmd_result = k8s_cmd_result or "workflow.dataworkflowservices.github.io/" .. workflow_name .. " patched\n"
@@ -839,15 +779,14 @@ describe("Slurm API", function()
 		assert.is_equal(ret, slurm.SUCCESS)
 	end
 
-	local call_bb_setup = function()
+	local call_bb_job_process = function()
 		local job_script = "#!/bin/bash\nsrun application.sh\n"
 		write_job_script(job_script_name, job_script)
 
 		local apply_result = "workflow.dataworkflowservices.github.io/" .. workflow_name .. " created\n"
-		local popen_count = mock_popen_calls("Proposal", "Completed", apply_result)
-		popen_count = popen_count + mock_popen_calls("Setup", "Completed")
+		local popen_count = mock_process_popen_calls(apply_result)
 
-		local ret, err = slurm_bb_setup(jobID, userID, groupID, "pool1", 1, job_script_name)
+		local ret, err = slurm_bb_job_process(job_script_name, userID, groupID, job_info)
 		assert_bb_state_success(ret, err, popen_count)
 
 		workflow = DWS(workflow_name)
@@ -867,95 +806,43 @@ describe("Slurm API", function()
 		assert_bb_state_success(ret, err, popen_count)
 	end
 
-	-- For DataIn, PreRun, PostRun, and DataOut.
-	-- Call the appropriate slurm_bb_* function to change the state then
-	-- call slurm_bb_get_status() to confirm the change.
-	local call_bb_state = function(new_state)
-		
-		local popen_count = mock_popen_calls("Teardown", "Completed")
+	it("slurm_bb_job_process can validate a workflow from a job script lacking directives", function()
+		local job_script = "#!/bin/bash\nsrun application.sh\n"
 
-		io.popen:clear()
-		local funcs = {
-			["DataIn"] = slurm_bb_data_in,
-			["PreRun"] = slurm_bb_pre_run,
-			["PostRun"] = slurm_bb_post_run,
-			["DataOut"] = slurm_bb_data_out,
-		}
-		local ret, err = funcs[new_state](jobID, job_script_name)
-		assert_bb_state_success(ret, err, popen_count)
-	end
+		write_job_script(job_script_name, job_script)
 
-	local call_bb_get_status = function(state, status)
-		local state_result = "desiredState=".. state .."\ncurrentState=".. state .."\nstatus=".. status .."\n"
-		dwsmq_enqueue(true, "") -- kubectl_cache_home
-		dwsmq_enqueue(true, state_result)
-		local bb_status_wanted = "desiredState=" .. state .. " currentState=" .. state .. " status=".. status ..""
-		io.popen:clear()
-
-		local ret, msg = slurm_bb_get_status("workflow", jobID)
-
+		local ret, err = slurm_bb_job_process(job_script_name, userID, groupID, job_info)
 		assert.stub(io.popen).was_called(2)
 		assert.is_equal(ret, slurm.SUCCESS)
-		assert.is_equal(msg, bb_status_wanted)
-
-		io.popen:clear()
-	end
-
-	it("slurm_bb_setup and slurm_bb_teardown with hurry flag can setup and destroy a workflow", function()
-		call_bb_setup()
-		call_bb_teardown("true")
-	end)
-
-	it("slurm_bb_setup through all other states", function()
-		call_bb_setup()
-		call_bb_state("DataIn")
-		call_bb_get_status("DataIn", "Completed")
-		call_bb_state("PreRun")
-		call_bb_state("PostRun")
-		call_bb_state("DataOut")
+		assert.is_equal(err, job_script)
 		call_bb_teardown()
 	end)
 
-	context("reports driver error(s)", function()
-		local assert_bb_state_error = function(ret, err, expected_error, popen_count)
-			assert.stub(io.popen).was_called(popen_calls)
-			io.popen:clear()
-			assert.is_equal(ret, slurm.ERROR)
-			assert.is_equal(expected_error, err)
-		end
+	it("slurm_bb_job_process can validate workflow from job script with directives", function()
+		local in_dwd = {}
+		in_dwd[1] = "#DW pool=pool1 capacity=1K"
+		in_dwd[2] = "#DW pool=pool2 capacity=1K"
+		local job_script = "#!/bin/bash\n" .. in_dwd[1] .. "\n" .. in_dwd[2] .. "\nsrun application.sh\n"
+		write_job_script(job_script_name, job_script)
 
-		local call_bb_setup_proposal_errors = function()
-			local job_script = "#!/bin/bash\nsrun application.sh\n"
-			write_job_script(job_script_name, job_script)
-	
-			local apply_result = "workflow.dataworkflowservices.github.io/" .. workflow_name .. " created\n"
-			local popen_count = mock_popen_calls("Proposal", "Error", apply_result)
+		-- The DWS environment does not have a ruleset for
+		-- the #DW directives, so we should expect an error.
+		-- We'll look for only a small piece of the error
+		-- message here.
+		local result_wanted = "unable to find ruleset"
+		dwsmq_enqueue(true, "") -- kubectl_cache_home
+		dwsmq_enqueue(false, result_wanted)
 
-			local driver_id_1 = "driver1"
-			local err_msg_1 = "Error Message #1" .. "\n" .. "error message 1 next line"
-			local driver_1_entry = string.format("===\nError\n%s\n%s\n", driver_id_1, err_msg_1)
+		local ret, err = slurm_bb_job_process(job_script_name, userID, groupID, job_info)
+		assert.stub(io.popen).was_called(2)
+		print("Expect an error message here: " .. err)
+		assert.is_equal(ret, slurm.ERROR)
+		assert.is_not_nil(string.find(err, result_wanted))
+	end)
 
-			local driver_id_2 = "driver2"
-			local err_msg_2 = "Error Message #2"
-			local driver_2_entry = string.format("===\nError\n%s\n%s\n", driver_id_2, err_msg_2)
-
-			local driver_3_entry = "===\nCompleted\ndriver3\n\n"
-
-			dwsmq_enqueue(true, "") -- kubectl_cache_home
-			dwsmq_enqueue(true, driver_1_entry .. driver_3_entry .. driver_2_entry)
-
-			popen_count = popen_count + 1
-			
-			local expected_error = string.format("DWS driver error(s):\n%s: %s\n\n%s: %s\n", driver_id_1, err_msg_1, driver_id_2, err_msg_2)
-			local ret, err = slurm_bb_setup(jobID, userID, groupID, "pool1", 1, job_script_name)
-			assert_bb_state_error(ret, err, expected_error, popen_count)
-			io.popen:clear()
-		end
-
-		it("during Proposal state in slurm_bb_setup()", function()
-			call_bb_setup_proposal_errors()
-		end)
-
+	it("slurm_bb_job_process and slurm_bb_teardown with hurry flag can create and destroy a workflow", function()
+		call_bb_job_process()
+		call_bb_teardown("true")
 	end)
 
 	context("negatives for slurm_bb_get_status validation", function()
@@ -963,7 +850,7 @@ describe("Slurm API", function()
 		local call_bb_status_negative = function(someID)
 			local status_wanted = "A job ID must contain only digits."
 			io.popen:clear()
-			local ret, msg = slurm_bb_get_status("workflow", someID)
+			local ret, msg = slurm_bb_get_status(userID, groupID, "workflow", someID)
 			assert.stub(io.popen).was_not_called()
 			print(msg)
 			assert.is_equal(ret, slurm.ERROR)
@@ -979,53 +866,6 @@ describe("Slurm API", function()
 			for k in ipairs(cases) do
 				call_bb_status_negative(cases[k])
 			end
-		end)
-	end)
-
-	insulate("error messages from data_in through data_out", function()
-		-- This is all about verifying the content of the error log
-		-- message.
-
-		local log_error_wanted
-
-		-- Capture the output of slurm.log_error() and validate it.
-		-- The 'insulate' context will revert this on completion of
-		-- the context.
-		_G.slurm.log_error = function(...)
-			local errmsg = string.format(...)
-			print("Message to validate: " .. errmsg)
-			assert.is_equal(errmsg, log_error_wanted)
-		end
-
-		-- For DataIn, PreRun, PostRun, and DataOut.
-		-- Call the appropriate slurm_bb_* function to induce an
-		-- error condition.
-		local call_bb_state_negative = function(new_state)
-			local set_state_result_wanted = 'Error from server (NotFound): workflows.dataworkflowservices.github.io "' .. workflow_name .. '" not found\n'
-			dwsmq_enqueue(true, "") -- kubectl_cache_home
-			dwsmq_enqueue(false, set_state_result_wanted)
-
-			io.popen:clear()
-			local funcs = {
-				["DataIn"] = {slurm_bb_data_in, "slurm_bb_data_in"},
-				["PreRun"] = {slurm_bb_pre_run, "slurm_bb_pre_run"},
-				["PostRun"] = {slurm_bb_post_run, "slurm_bb_post_run"},
-				["DataOut"] = {slurm_bb_data_out, "slurm_bb_data_out"},
-			}
-
-			log_error_wanted = lua_script_name .. ": " .. funcs[new_state][2] .. "(), workflow=" .. workflow_name .. ": set_desired_state: " .. set_state_result_wanted
-
-			local ret, err = funcs[new_state][1](jobID, job_script_name)
-			assert.stub(io.popen).was_called(2)
-			assert.is_equal(ret, slurm.ERROR)
-			assert.is_equal(err, "set_desired_state: " .. set_state_result_wanted)
-		end
-
-		it("slurm_bb_data_in through slurm_bb_data_out error messages", function()
-			call_bb_state_negative("DataIn")
-			call_bb_state_negative("PreRun")
-			call_bb_state_negative("PostRun")
-			call_bb_state_negative("DataOut")
 		end)
 	end)
 
