@@ -58,6 +58,13 @@ bash-4.4$ cd /jobs
 
 The `/jobs` directory is mounted into the container from your workarea.  You can find it in your workarea at `testsuite/integration/slurm/jobs`.  This directory contains a sample job script.  Any output files from job scripts will also be stored in this directory.  Slurm commands such as `sbatch`, `scontrol`, and `scancel` may be used from this location in the container if run as the `slurm` user.
 
+Watch the Slurm log which includes the log messages from the burst buffer
+plugin:
+
+```console
+docker logs slurmctld
+```
+
 The Slurm `sacct` command, and certain others, will not work in this minimalist Slurm environment.
 
 ### Playground shutdown and cleanup

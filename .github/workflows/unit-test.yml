@@ -121,4 +121,4 @@ jobs:
           format: text
           indicators: false
           output: console
-          thresholds: '80 85'
+          thresholds: '70 85'

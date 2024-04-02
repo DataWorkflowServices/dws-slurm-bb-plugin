@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 
 #
-# Copyright 2022 Hewlett Packard Enterprise Development LP
+# Copyright 2022-2024 Hewlett Packard Enterprise Development LP
 # Other additional copyright holders may be indicated within.
 #
 # The entirety of this work is licensed under the Apache License,
@@ -31,7 +31,7 @@ jobs:
 
       # Publish event file if debug is enabled
       - name: Publish Event File
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: ${{ runner.debug }}
         with:
           name: integration-test-event-file
@@ -41,13 +41,13 @@ jobs:
       - name: Get Branch
         run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
       # Requireed for docker caching
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
 
       # Pre-build slurm image with docker cache. This will also generate an
       # inline cache used by the docker build in the "Integration Test" job.
@@ -55,7 +55,7 @@ jobs:
       # on new branches will need to build the image from scratch. Expect 10
       # minutes for a full slurm build.
       - name: Build Slurm
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v5
         with:
           context: testsuite/submodules/slurm-docker-cluster
           push: false
@@ -69,7 +69,7 @@ jobs:
       # Pre-build slurm image with docker cache. Expect 3 minutes for a full
       # DWS build.
       - name: Build DWS
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v5
         with:
           context: testsuite/submodules/dws
           push: false
@@ -81,7 +81,7 @@ jobs:
       # Pre-build dws-test-driver image with docker cache. Expect 2 minutes
       # for a full build
       - name: Build dws-test-driver
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v5
         with:
           context: testsuite/submodules/dws-test-driver
           push: false
@@ -94,7 +94,7 @@ jobs:
         run: cd testsuite/integration && make setup test reports
 
       - name: Publish Test Results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: integration-test-results
           path: testsuite/integration/reports

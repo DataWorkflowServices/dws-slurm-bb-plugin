@@ -22,12 +22,12 @@
 generate_cluster () {
   set -e
 
-  CONFIG=$(dirname $0)/kind-config.yaml
+  CONFIG=$(dirname "$0")/kind-config.yaml
   # Only write the config if it's not present.
   if ! [[ -f $CONFIG ]]
   then
     # System Local Controllers (SLC)
-  cat > $CONFIG <<EOF
+  cat > "$CONFIG" <<EOF
   kind: Cluster
   apiVersion: kind.x-k8s.io/v1alpha4
   name: dws
@@ -38,7 +38,7 @@ EOF
   fi
 
   # Create a KIND cluster to run DWS operator.
-  kind create cluster --wait 60s --image=kindest/node:v1.27.2 --config $CONFIG
+  kind create cluster --wait 60s --image=kindest/node:v1.27.2 --config "$CONFIG"
 }
 
 install_dependencies () {
@@ -50,18 +50,18 @@ install_dependencies () {
   # Create the slurm namespace. This will be the default location of dws-slurm-bb-plugin workflows
   kubectl create namespace slurm
 
+  # Install the cert-manager for the DWS webhook.
+  CERTVER=v1.13.1
+  kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/"$CERTVER"/cert-manager.yaml
+
   # Pull cert-manager into the local cache and push into KIND.  Sometimes
   # the KIND env cannot pull it from upstream.
-  CERTVER=v1.13.1
-  for part in controller webhook cainjector
-  do
-      image=quay.io/jetstack/cert-manager-$part:$CERTVER
-      docker pull $image
-      kind load docker-image --name=dws $image
-  done
-
-  # Install the cert-manager for the DWS webhook.
-  kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/$CERTVER/cert-manager.yaml
+  if images=$(kubectl get deploy -n cert-manager -o jsonpath='{range .items[*]}{range .spec.template.spec.containers[*]}{.image}{"\n"}{end}{end}' | sort -u); then
+      for part in $images; do
+          docker pull "$part"
+          kind load docker-image --name=dws "$part"
+      done
+  fi
 
   kubectl wait deployment --timeout=60s -n cert-manager cert-manager --for condition=Available=True
   kubectl wait deployment --timeout=60s -n cert-manager cert-manager-cainjector --for condition=Available=True
