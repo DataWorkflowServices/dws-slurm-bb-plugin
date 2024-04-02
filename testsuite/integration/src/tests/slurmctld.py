@@ -1,5 +1,5 @@
 #
-# Copyright 2022-2023 Hewlett Packard Enterprise Development LP
+# Copyright 2022-2024 Hewlett Packard Enterprise Development LP
 # Other additional copyright holders may be indicated within.
 #
 # The entirety of this work is licensed under the Apache License,
@@ -19,8 +19,8 @@
 
 import os
 import time
-import docker
 import re
+import docker
 from tenacity import *
 
 # Submitting jobs can fail, occasionally, when the DWS webhook rejects the
@@ -44,34 +44,40 @@ class Slurmctld:
         print("Slurmctld exec_run: " + cmd)
         exec_cmd = cmd.split()
         rc,out = self.slurmctld.exec_run(
-            exec_cmd, 
+            exec_cmd,
             user="slurm",
             workdir="/jobs"
         )
         return rc,str(out, 'utf-8')
-    
-    def submit_job(self, scriptPath):
+
+    def submit_job(self, script_path):
         # The --wait option could be used here. However, other tests need to
         # asynchronously track the job status
-        cmd = f"sbatch --output={scriptPath}.out --error={scriptPath}.error.out {scriptPath}"
+        cmd = f"sbatch -vv --output={script_path}.out --error={script_path}.error.out {script_path}"
         rc, out = self.exec_run(cmd)
         if rc != 0:
+            print("BEGIN Job submission error")
+            print(out + "\n")
+            print("END Job submission error")
             raise JobSubmissionError(out)
-        jobId = int(out.split()[-1])
-        return jobId, scriptPath + ".out", scriptPath + ".error.out"
+        print("BEGIN Job submission")
+        print(out + "\n")
+        print("END Job submission")
+        job_id = int(out.split()[-1])
+        return job_id, script_path + ".out", script_path + ".error.out"
 
-    def remove_job_output(self, jobId, outputFilePath, errorFilePath):
+    def remove_job_output(self, output_file_path, error_file_path):
         """
         The creation of the job's output file will sometimes lag behind the
         job's completion. This is a cleanup step, so retry the operation, but
         don't raise a test error.
         """
-        if os.path.exists(errorFilePath):
-            with open(errorFilePath, "r", encoding="utf-8") as errorFile:
-                print(errorFile.read())
-            os.remove(errorFilePath)
-        if os.path.exists(outputFilePath):
-            os.remove(outputFilePath)
+        if os.path.exists(error_file_path):
+            with open(error_file_path, "r", encoding="utf-8") as error_file:
+                print(error_file.read())
+            os.remove(error_file_path)
+        if os.path.exists(output_file_path):
+            os.remove(output_file_path)
 
     @retry(
         wait=wait_fixed(2),
@@ -95,21 +101,43 @@ class Slurmctld:
         for job_prop_line in job_prop_lines:
             properties = job_prop_line.split()
             for prop in properties:
-                keyVal = prop.split("=")
-                assert len(keyVal) == 2, "Could not parse state from: " + out
-                if keyVal[0] == "JobState":
-                    print("JobState=" + keyVal[1])
-                    return keyVal[1], out
+                key_val = prop.split("=")
+                assert len(key_val) == 2, "Could not parse state from: " + out
+                if key_val[0] == "JobState":
+                    print("JobState=" + key_val[1])
+                    return key_val[1], out
         assert False, "Could not parse state from: " + out
-    
-    @retry(
-        wait=wait_fixed(2),
-        stop=stop_after_attempt(5)
-    ) 
-    def wait_until_job_has_been_x(self, jobId, job_state):
-        job_state, _ = self.scontrol_show_job(jobId)
-        print(f"Found \"{job_state}\" in JobState")
-        assert job_state == job_state
+
+    def wait_until_job_has_been_x(self, jobId, job_state_wanted, script_path):
+        cnt = 0
+        while cnt < 5:
+            job_state, out = self.scontrol_show_job(jobId)
+            print(f"Found \"{job_state}\" in JobState")
+            if job_state == job_state_wanted:
+                break
+            if job_state == "FAILED" and job_state_wanted == "COMPLETED":
+                # We're in the weeds. Drop a clue.
+                print("BEGIN scontrol show job")
+                print(out)
+                print("END scontrol show job")
+                print("BEGIN get workflows")
+                rc,out = self.exec_run("kubectl --kubeconfig /etc/slurm/slurm-dws.kubeconfig get workflows -A")
+                print(f"rc = {rc}\n{out}")
+                print("END get workflows")
+                print("BEGIN job output file")
+                rc,out = self.exec_run(f"cat {script_path}.out")
+                print("END job output file")
+                print("BEGIN job error output file")
+                rc,out = self.exec_run(f"cat {script_path}.error.out")
+                print("END job error output file")
+                print("BEGIN slurmctld log")
+                os.system("docker logs slurmctld 2>&1")
+                print("END slurmctld log")
+                assert job_state == job_state_wanted # stop looping now
+
+            cnt += 1
+            time.sleep(2)
+        assert job_state == job_state_wanted
 
     @retry(
         wait=wait_fixed(2),
@@ -122,7 +150,7 @@ class Slurmctld:
         if message in m.group(1):
             print(f"Found \"{message}\" in SystemComment")
         assert message in m.group(1)
-    
+
     def scontrol_show_bbstat(self, jobId):
         rc, out = self.exec_run("scontrol show bbstat workflow " + str(jobId))
         assert rc == 0, "Could not get job status from Slurm:\n" + out
@@ -133,8 +161,8 @@ class Slurmctld:
         status = {}
         properties = out.split()
         for prop in properties:
-            keyVal = prop.split("=")
-            assert len(keyVal) == 2, "Could not parse statuses from: " + out
-            status[keyVal[0]] = keyVal[1]
+            key_val = prop.split("=")
+            assert len(key_val) == 2, "Could not parse statuses from: " + out
+            status[key_val[0]] = key_val[1]
 
         return status
