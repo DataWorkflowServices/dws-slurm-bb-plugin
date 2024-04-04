@@ -639,6 +639,7 @@ function slurm_bb_job_teardown(job_id, job_script, hurry, uid, gid)
 	if done == false then
 		if string.find(err, [["]] .. workflow.name .. [[" not found]]) then
 			-- It's already gone, and that's what we wanted anyway.
+			slurm.log_info("%s: slurm_bb_job_teardown(), workflow=%s: already removed", lua_script_name, workflow.name)
 			return slurm.SUCCESS
 		else
 			slurm.log_error("%s: slurm_bb_job_teardown(), workflow=%s: unable to check driver errors: %s", lua_script_name, workflow.name, err)
@@ -659,22 +660,22 @@ function slurm_bb_job_teardown(job_id, job_script, hurry, uid, gid)
 		slurm.log_error("%s: slurm_bb_job_teardown(), workflow=%s, delete: %s", lua_script_name, workflow.name, err)
 		ret = slurm.ERROR
 		-- fall-through, let any necessary scancel happen.
+	else
+		slurm.log_info("%s: slurm_bb_job_teardown(), workflow=%s: deleted", lua_script_name, workflow.name)
 	end
 
 	if state_errors ~= "" then
 		-- Now do the scancel.  This will terminate this Lua script and will
 		-- trigger slurm to call our teardown again, but that'll be a no-op
 		-- when it comes back here.
-		slurm.log_info("%s: slurm_bb_job_teardown(), workflow=%s: executing scancel --hurry %s, found driver errors: %s", lua_script_name, workflow.name, job_id, state_errors)
-		_, err = workflow:scancel(job_id, true)
-		if err == "" then
-			err = "(no output)"
+		slurm.log_info("%s: slurm_bb_job_teardown(), workflow=%s: executing 'scancel --hurry %s', found driver errors: %s", lua_script_name, workflow.name, job_id, state_errors)
+		local err2
+		done, err2 = workflow:scancel(job_id, true)
+		if done == false then
+			slurm.log_error("%s: slurm_bb_job_teardown(), workflow=%s: scancel: %s", lua_script_name, workflow.name, err2)
 		end
 	end
 
-	if ret == slurm.SUCCESS then
-		err = "Success"
-	end
 	return ret, err
 end
 
@@ -798,7 +799,7 @@ end
 --state.
 --]]
 function slurm_bb_post_run(job_id, job_script, uid, gid, job_info)
-	slurm.log_info("%s: slurm_post_run(). job id:%s, job script:%s, uid:%s, gid:%s",
+	slurm.log_info("%s: slurm_bb_post_run(). job id:%s, job script:%s, uid:%s, gid:%s",
 		lua_script_name, job_id, job_script, uid, gid)
 
 	local workflow = DWS(make_workflow_name(job_id))
@@ -808,7 +809,7 @@ function slurm_bb_post_run(job_id, job_script, uid, gid, job_info)
 		return slurm.ERROR, err
 	end
 
-	return slurm.SUCCESS, "Success"
+	return slurm.SUCCESS, ""
 end
 
 --[[
@@ -829,7 +830,7 @@ function slurm_bb_data_out(job_id, job_script, uid, gid, job_info)
 		return slurm.ERROR, err
 	end
 
-	return slurm.SUCCESS, "Success"
+	return slurm.SUCCESS, ""
 end
 
 --[[
