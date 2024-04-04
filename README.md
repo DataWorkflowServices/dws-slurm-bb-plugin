@@ -75,11 +75,11 @@ To shutdown and cleanup the entire test environment, use the `clean` target in t
 make -C testsuite/integration clean
 ```
 
-### Simple playground exercise #1
+### Simple playground exercise #1: DriverWait
 
 This simple exercise will cause the job to proceed to DataOut state and wait for us to mark that state as complete, and then it will proceed to Teardown state.
 
-Edit `testsuite/integration/slurm/jobs/test-bb.sh` to change the `#DW` line to be `#DW DataOut action=wait`.
+Edit `testsuite/integration/slurm/jobs/test-bb.sh` to change the `#DW` line to be `#DW DataOut action=wait`. These '#DW' lines are being interpreted by dws-test-driver, which a stand-in for any backend service.
 
 ```bash
 #SBATCH --output=/jobs/slurm-%j.out
@@ -115,7 +115,7 @@ kubectl patch workflow -n slurm bb12 --type=json -p '[{"op":"replace", "path":"/
 
 You can then watch the Workflow resource proceed to Teardown state, after which the burst_buffer.lua teardown function will delete the resource.
 
-### Simple playground exercise #2
+### Simple playground exercise #2: Transient Error
 
 This exercise will cause the job to wait on a Major error in DataOut and after
 we clear the error it will proceed to Teardown state where it will wait for
@@ -158,5 +158,34 @@ The workflow is now in Teardown with a status of DriverWait.  Release it by mark
 
 ```console
 kubectl patch workflow -n slurm bb3 --type=json -p '[{"op":"replace", "path":"/status/drivers/1/status", "value": "Completed"}, {"op":"replace", "path":"/status/drivers/1/completed", "value": true}]'
+```
+
+### Simple playground exercise #3: Fatal Error
+
+This exercise will cause the job to wait on a Fatal error in DataOut. The
+burst-buffer plugin will collect the error and add it to the slurm job and
+will transition the workflow to Teardown state and delete it.
+
+Edit `testsuite/integration/slurm/jobs/test-bb.sh` to change the `#DW` lines to be the following:
+
+```bash
+#SBATCH --output=/jobs/slurm-%j.out
+#DW DataOut action=error message=rename_permission_denied severity=Fatal
+/bin/hostname
+srun -l /bin/hostname
+srun -l /bin/pwd
+```
+
+Submit this job using the `sbatch` command as shown above.
+
+Watch the workflow with `kubectl get workflow -wA` as shown above. We did not
+ask dws-test-driver to wait in Teardown state this time (no `#DW Teardown
+action=wait`), so everything will run at full speed and we won't have a chance
+to look at the workflow before it is deleted.
+
+We can view the error in the slurm job:
+
+```console
+bash-4.4$ scontrol show job 3
 ```
 
